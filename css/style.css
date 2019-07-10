@@ -26,14 +26,14 @@ body {
 }
 
 .field__img-wrapper {
-  outline: 1px solid red;
+  outline: 1px solid black;
   position: relative;
 }
 
 .field__overlay {
   /* display: none; */
   position: absolute;
-  background-color: red;
+  background-color: #081208;
   top: 0;
   bottom: 0;
   left: 0;
@@ -41,7 +41,7 @@ body {
 }
 
 .piece {
-  box-shadow: inset 0 0 2px 0 white;
+  box-shadow: inset 0 0 1px 0 white;
   background: url(../img/image.jpg) 0 0 no-repeat;
   background-size: 1000px auto;
   position: absolute;

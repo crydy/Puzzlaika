@@ -1,12 +1,10 @@
 'use strict'
 
 // количество элементов
-const HORISONTAL_AMOUNT = 6;
-const VERTICAL_AMOUNT = 4;
-
+const HORISONTAL_AMOUNT = 4;
+const VERTICAL_AMOUNT = 3;
 // длительность анимации слияния (секунды)
 const TRANSITION_DURATION = .3;
-
 // коэффициент расширения области чувствительности поиска смежных элементов (сдвиг от края)
 const SEARCH_SPREAD = 20;
 // размах стыковки при совпадении (степень допустимого смещения в стороны от "оси стыковки")
@@ -59,14 +57,13 @@ for (let i = 0; i < amount; i++) {
 // Настроить раскладку
 setPositions(pieces, 'random');
 
-// Фрагмент для элементов
+// Фрагмент для накопления
 let fragment = document.createDocumentFragment();
 
-// Создать элементы DOM
+// Создать DOM-элементы
 pieces.forEach(function(item, index) {
 
   let piece = document.createElement('div');
-  // ... общий класс, порядковый номер, строка, колонка
   piece.className = `piece piece-${index + 1} row-${item.row} column-${item.column}`;
   piece.index = index + 1;
   piece.row = item.row;
@@ -83,11 +80,11 @@ pieces.forEach(function(item, index) {
   // вписать данные о положении картинки в элементе
   piece.style.backgroundPosition = `${-item.xPicShift}px ${-item.yPicShift}px`;
 
-  // накапливаем во фрагмент
+  // вставить во фрагмент
   fragment.append(piece);
 });
 
-// вставить фрагмент
+// интегрировать в document
 imgWrapper.append(fragment);
 
 
@@ -95,7 +92,7 @@ imgWrapper.append(fragment);
 // ---------------------- ОБРАБОТКА СОБЫТИЙ ------------------------  
 */ 
 
-// Слушать вжатие мыши на документе
+// Слушать "вжатие" мыши на документе
 document.addEventListener('mousedown', function(event) {
 
   // если клик левой клавишей по детали пазла
@@ -103,73 +100,77 @@ document.addEventListener('mousedown', function(event) {
     event.preventDefault();
 
     // двигаемый элемент
-    let piece = event.target;
+    let activeElem = event.target;
 
     // расстояние от краев элемента до места клика
-    let shiftX = event.clientX - piece.getBoundingClientRect().left;
-    let shiftY = event.clientY - piece.getBoundingClientRect().top;
+    let shiftX = event.clientX - activeElem.getBoundingClientRect().left;
+    let shiftY = event.clientY - activeElem.getBoundingClientRect().top;
   
     // отображать поверх других элементов, позиционировать относительно document
-    piece.style.position = 'absolute';
-    piece.style.zIndex = 1000;
-    document.body.append(piece);
+    activeElem.style.position = 'absolute';
+    activeElem.style.zIndex = 1000;
+    document.body.append(activeElem);
 
-    // отражать все перетаскиваемые элементы поверх прочих
+    // если есть сцепленные элементы - также отображать поверх
     Array.from(document.querySelectorAll('.piece'))
-      .filter((item) => item.id && item.id === piece.id)
+      .filter((item) => item.id && item.id === activeElem.id)
       .forEach(function(item) {
         document.body.append(item);
       });
 
     // захватить элемент под курсор
-    moveAt(piece, event.pageX - shiftX, event.pageY - shiftY);
+    moveAt(activeElem, event.pageX - shiftX, event.pageY - shiftY);
   
     // двигать элемент относительно краев браузера
-    function moveAt(elem, x, y) {
-      elem.style.left = x + 'px';
-      elem.style.top = y + 'px';
+    function moveAt(activeElem, x, y) {
+      activeElem.style.left = x + 'px';
+      activeElem.style.top = y + 'px';
     }
 
-    // обработка события движения с зажатой клавишей (с захваченным элементом)
+    // обработка события движения с захваченным элементом
     function onMouseMove(event) {
-      moveAt(piece, event.pageX - shiftX, event.pageY - shiftY);
 
-      // если элемент имеет id (было слияние с другими) - двигать слитые элементы синхронно
-      if (piece.id) {
+      // двигать сам элемент
+      moveAt(activeElem, event.pageX - shiftX, event.pageY - shiftY);
+
+      // если элемент имеет id (часть группы) - двигать всю группу
+      if (activeElem.id) {
         Array.from(document.querySelectorAll('.piece'))
-          .filter((item) => item.id === piece.id && item !== piece)
+          .filter((item) => item.id === activeElem.id && item !== activeElem)
           .forEach(function(item) {
-            let itemX = event.pageX - ((piece.column - item.column) * elemWidth) - shiftX;
-            let itemY = event.pageY - ((piece.row - item.row) * elemHeight) - shiftY;
+            let itemX = event.pageX - ((activeElem.column - item.column) * elemWidth) - shiftX;
+            let itemY = event.pageY - ((activeElem.row - item.row) * elemHeight) - shiftY;
             moveAt( item, itemX, itemY);
           });
       };
     }
   
-    // слушать движение мыши, при смене позиции
+    // Слушать движение мыши, при смене позиции
     // подгонять положение элемента
     document.addEventListener('mousemove', onMouseMove);
   
-    // при отпускании клавиши: удалять прослушку движения,
-    // самоудаляться текущему обработчику события
-    piece.onmouseup = function() {
+    // При отпускании клавиши...
+    activeElem.onmouseup = function() {
+
+      // удалять прослушку движения
       document.removeEventListener('mousemove', onMouseMove);
-      piece.onmouseup = null;
+
+      // самоудаляться текущему обработчику события
+      activeElem.onmouseup = null;
 
       // Получить данные о искомых деталях, присоединить, если есть совпадения
-      mergePieces( piece, getAllAdjacent(piece) );
+      mergePieces( activeElem, getAllAdjacent(activeElem) );
 
       // Запустить поиск и слияние при совпадении для каждой детали с таким-же id
       Array.from(document.querySelectorAll('.piece'))
-      .filter((item) => item.id === piece.id && item !== piece)
+      .filter((item) => item.id === activeElem.id && item !== activeElem)
       .forEach(function(item) {
         mergePieces( item, getAllAdjacent(item) );
       });
-
     };
 
     // отменить дефолтную обработку перетаскивания
-    piece.ondragstart = function() {
+    activeElem.ondragstart = function() {
       return false;
     };
   }
@@ -180,117 +181,80 @@ document.addEventListener('mousedown', function(event) {
 // ---------------------- ФУНКЦИИ ------------------------  
 */ 
 
-// соединение элементов
-function mergePieces(elem, adjElemArray) {
+// Присоединение элементов. Аргументы: рабочий элемент, массив элементов для присоединения.
+function mergePieces(activeElem, adjElemArray) {
   if (!adjElemArray) return;
 
-  // общий идентификатор для сцепленных элементов
-  if (!elem.id) elem.id = `f${(~~(Math.random()*1e8)).toString(16)}`;
+  // сгенерировать общий идентификатор для сцепляемых элементов
+  if (!activeElem.id) activeElem.id = `f${(~~(Math.random()*1e8)).toString(16)}`;
 
-  for (let obj of adjElemArray) {
-    for (let dir in obj) {
+    // присоединить каждый из массива, либо группу элементов, частью которой является присоединяемый
+    for (let targetElem of adjElemArray) {
 
-      // Совпавший элемент
-      let anotherElem = obj[dir];
+      // если оба элемента имеют разные id (еще не сцеплены меж собой)
+      if (targetElem.id !== activeElem.id) {
 
-      // Если оба элемента имеют разные id (не сцеплены) - соединить с анимацией
-      if (anotherElem.id !== elem.id) {
-
-        // Исходные координаты относительно вьюпорта
-        let initCoord = anotherElem.getBoundingClientRect();
-  
-        // выдернуть на уровень document в то-же место, сделать плавную анимацию
-        anotherElem.style.position = 'absolute';
-        anotherElem.style.zIndex = 1000;
-        anotherElem.style.left = initCoord.left + 'px';
-        anotherElem.style.top = initCoord.top + 'px';
-        anotherElem.style.transitionDuration = TRANSITION_DURATION + 's';
-        document.body.append(anotherElem);
-  
-        // придвинуть
-        switch (dir) {
-          case 'left':
-            anotherElem.style.top = elem.getBoundingClientRect().top + 'px';
-            anotherElem.style.left = elem.getBoundingClientRect().left - elemWidth + 'px';
-            break;
-  
-          case 'right':
-            anotherElem.style.top = elem.getBoundingClientRect().top + 'px';
-            anotherElem.style.left = elem.getBoundingClientRect().left + elemWidth + 'px';
-            break;
-  
-          case 'top':
-            anotherElem.style.left = elem.getBoundingClientRect().left + 'px';
-            anotherElem.style.top = elem.getBoundingClientRect().top - elemHeight + 'px';
-            break;
-  
-          case 'bottom':
-            anotherElem.style.left = elem.getBoundingClientRect().left + 'px';
-            anotherElem.style.top = elem.getBoundingClientRect().top + elemHeight + 'px';
-            break;
+        if (!targetElem.id) { // если целевой элемент не имеет id (не является частью группы сцепленных элементов)...
+          moveToActive(activeElem, targetElem); // придвинуть к активному
+          targetElem.id = activeElem.id; // присвоить общий id с активным (образовать группу)
+        } else { // иначе, целевой - часть группы, выполнить те-же действия для каждого элемента группы
+          Array.from(document.querySelectorAll('.piece'))
+            .filter((item) => targetElem.id && item.id === targetElem.id)
+            .forEach(function(item) {
+              moveToActive(activeElem, item);
+              item.id = activeElem.id;
+            });
         }
-  
-        // сбросить анимацию
-        setTimeout( () => anotherElem.style.transitionDuration = '', TRANSITION_DURATION * 1000);
-
-        // если anotherElem не имеет соседей со своим id - сдвигать только его,
-        // если имеет - сдвинуть всех товарищей синхронно
-        Array.from(document.querySelectorAll('.piece'))
-          .filter((item) => anotherElem.id && item.id === anotherElem.id && item !== anotherElem)
-          .forEach(function(item) {
-
-            document.body.append(item);
-
-            item.style.transitionDuration = TRANSITION_DURATION + 's';
-
-            item.style.left = elem.getBoundingClientRect().left - ((elem.column - item.column) * elemWidth) + 'px';
-            item.style.top = elem.getBoundingClientRect().top - ((elem.row - item.row) * elemHeight) + 'px';
-
-            setTimeout( () => item.style.transitionDuration = '', TRANSITION_DURATION * 1000);
-          });
       }
-      
-      // Поделиться id с совпавшим, и всеми, прицепленными к совпавшему
-      if (anotherElem.id) {
-        Array.from(document.querySelectorAll('.piece'))
-        .filter((item) => item.id === anotherElem.id)
-        .forEach(function(item) {
-          item.id = elem.id;
-        });
-      };
-      anotherElem.id = elem.id;
     }
-  }
+}
+
+// Сдвиг пассивного элемента к активному
+function moveToActive(activeElem, attachableElem) {
+
+  // выдернуть на уровень document в то-же место, установить плавную анимацию
+  let initCoord = attachableElem.getBoundingClientRect();
+  attachableElem.style.position = 'absolute';
+  attachableElem.style.zIndex = 1000;
+  attachableElem.style.left = initCoord.left + 'px';
+  attachableElem.style.top = initCoord.top + 'px';
+  attachableElem.style.transitionDuration = TRANSITION_DURATION + 's';
+  document.body.append(attachableElem);
+
+  // сдвинуть в соответствие с дОлжной позицией относительно активного
+  attachableElem.style.left = activeElem.getBoundingClientRect().left - ((activeElem.column - attachableElem.column) * elemWidth) + 'px';
+  attachableElem.style.top = activeElem.getBoundingClientRect().top - ((activeElem.row - attachableElem.row) * elemHeight) + 'px';
+
+  // сбросить анимацию
+  setTimeout( () => attachableElem.style.transitionDuration = '', TRANSITION_DURATION * 1000);
 }
 
 // Получить все смежные части мозайки. Возвращает массив
-// объектов вида { 'direction': correct-elem },
-// либо null, если подходящих не найдено.
-function getAllAdjacent(elem) {
+// подходящих частей, либо null, если подходящих не найдено.
+function getAllAdjacent(activeElem) {
   const elems = [];
 
-  let left = getAdjacent(elem, 'left');
+  let left = getAdjacent(activeElem, 'left');
   if (left) elems.push(left);
 
-  let right = getAdjacent(elem, 'right');
+  let right = getAdjacent(activeElem, 'right');
   if (right) elems.push(right);
 
-  let top = getAdjacent(elem, 'top');
+  let top = getAdjacent(activeElem, 'top');
   if (top) elems.push(top);
 
-  let bottom = getAdjacent(elem, 'bottom');
+  let bottom = getAdjacent(activeElem, 'bottom');
   if (bottom) elems.push(bottom);
 
   return (elems.length > 0) ? elems : null;
 }
 
-
 // Поиск смежных частей мозайки для данного элемента в заданном направлении.
-// Возвращает объект вида { 'direction': correct elem } или null.
-function getAdjacent(elem, direction) {
+// Возвращает найденный элемент или null.
+function getAdjacent(activeElem, direction) {
 
   // координаты заданного элемента
-  let coord = elem.getBoundingClientRect();
+  let coord = activeElem.getBoundingClientRect();
 
   // точки "прощупывания" с учетом коэффициента
   let x, y;
@@ -325,13 +289,13 @@ function getAdjacent(elem, direction) {
     adjacents.push( document.elementFromPoint(x, y) );
     adjacents.push( document.elementFromPoint(x, y + ((coord.bottom - coord.top) / 2)) ); // от центра элемента
     adjacents.push( document.elementFromPoint(x, coord.bottom) );
-  }
+  };
 
   if (direction === 'top' || direction === 'bottom') {
     adjacents.push( document.elementFromPoint(x, y) );
     adjacents.push( document.elementFromPoint(x  + ((coord.right - coord.left) / 2), y)); // от центра элемента
     adjacents.push( document.elementFromPoint(coord.right, y) );
-  }
+  };
 
   // целевой элемент
   let targetPiece = null;
@@ -341,46 +305,43 @@ function getAdjacent(elem, direction) {
     if (item && item.classList.contains('piece') && !targetPiece) {
 
       switch(direction) {
+
         case 'left': // условие совпадения: порядковый номер минус один + тот-же ряд элемента
-          if (elem.index === item.index + 1
-            && elem.row === item.row
-            && Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD
-            && Math.abs(item.getBoundingClientRect().right - coord.left) <= MERGE_SPREAD) {
-              // console.log('left concurrency!');
-              targetPiece = {left: item};
-          }
+          if (activeElem.index === item.index + 1 &&
+              activeElem.row === item.row &&
+              Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
+              Math.abs(item.getBoundingClientRect().right - coord.left) <= MERGE_SPREAD) {
+                targetPiece = item;
+          };
           break;
 
         case 'right': // условие совпадения: порядковый номер плюс один + тот-же ряд элемента
-          if (elem.index === item.index - 1
-            && elem.row === item.row
-            && Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD
-            && Math.abs(item.getBoundingClientRect().left - coord.right) <= MERGE_SPREAD) {
-              // console.log('right concurrency!');
-              targetPiece = {right: item};
-          }
+          if (activeElem.index === item.index - 1 &&
+              activeElem.row === item.row &&
+              Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
+              Math.abs(item.getBoundingClientRect().left - coord.right) <= MERGE_SPREAD) {
+                targetPiece = item;
+          };
           break;
 
         case 'top': // условие совпадения: та-же колонка + ряд меньший на один
-          if (elem.column === item.column
-            && elem.row === item.row + 1
-            && Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD
-            && Math.abs(item.getBoundingClientRect().bottom - coord.top) <= MERGE_SPREAD) {
-              // console.log('top concurrency!');
-              targetPiece = {top: item};
-          }
+          if (activeElem.column === item.column &&
+              activeElem.row === item.row + 1 &&
+              Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
+              Math.abs(item.getBoundingClientRect().bottom - coord.top) <= MERGE_SPREAD) {
+                targetPiece = item;
+          };
           break;
 
         case 'bottom': // условие совпадения: та-же колонка + ряд больший на один
-          if (elem.column === item.column
-            && elem.row === item.row - 1
-            && Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD
-            && Math.abs(item.getBoundingClientRect().top - coord.bottom) <= MERGE_SPREAD) {
-              // console.log('bottom concurrency!');
-              targetPiece = {bottom: item};
-          }
+          if (activeElem.column === item.column &&
+              activeElem.row === item.row - 1 &&
+              Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
+              Math.abs(item.getBoundingClientRect().top - coord.bottom) <= MERGE_SPREAD) {
+                targetPiece = item;
+          };
           break;
-      }
+      };
     };
   });
   return targetPiece;

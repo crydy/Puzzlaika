@@ -1,8 +1,12 @@
 'use strict'
 
+// количество элементов по короткой стороне
+const ELEMENT_COUNT = 5;
+
 // количество элементов
-const HORISONTAL_AMOUNT = 4;
-const VERTICAL_AMOUNT = 3;
+let HORISONTAL_AMOUNT;
+let VERTICAL_AMOUNT;
+
 // длительность анимации слияния (секунды)
 const TRANSITION_DURATION = .3;
 // коэффициент расширения области чувствительности поиска смежных элементов (сдвиг от края)
@@ -15,8 +19,46 @@ const imgWrapper = document.querySelector('.field__img-wrapper');
 const img = document.querySelector('.field__img');
 
 // размер исходной картинки
-const fieldWidth = img.offsetWidth;
-const fieldHeight = img.offsetHeight;
+let fieldWidth = img.offsetWidth;
+let fieldHeight = img.offsetHeight;
+
+// выбор количества делатей по короткой ширине,
+// все детали - квадратные, по длинной стороне остаток урезается
+if (fieldWidth < fieldHeight) { // если короче ширина
+
+  HORISONTAL_AMOUNT = ELEMENT_COUNT;
+  // размер куска
+  const elemSideLength = fieldWidth / HORISONTAL_AMOUNT;
+  // количество вмещаемых элементов по высоте
+  VERTICAL_AMOUNT = Math.trunc(fieldHeight / elemSideLength);
+  // Требуемая высота
+  const targetHeight = elemSideLength * VERTICAL_AMOUNT;
+
+  // Подрезать картинку
+  img.style.objectFit = 'none';
+  img.style.objectPosition = 'center';
+  img.style.height = targetHeight + 'px';
+
+  fieldHeight = targetHeight;
+
+} else { // если короче высота
+
+  VERTICAL_AMOUNT = ELEMENT_COUNT;
+  // размер куска
+  const elemSideLength = fieldHeight / VERTICAL_AMOUNT;
+  // количество вмещаемых элементов по ширине
+  HORISONTAL_AMOUNT = Math.trunc(fieldWidth / elemSideLength);
+  // Требуемая ширина
+  const targetWidth = elemSideLength * HORISONTAL_AMOUNT;
+
+  // Подрезать картинку
+  img.style.objectFit = 'none';
+  img.style.objectPosition = 'center';
+  img.style.width = targetWidth + 'px';
+
+  fieldWidth = targetWidth;
+
+};
 
 // размеры элементов
 const elemWidth = fieldWidth / HORISONTAL_AMOUNT;
@@ -80,12 +122,18 @@ pieces.forEach(function(item, index) {
   // вписать данные о положении картинки в элементе
   piece.style.backgroundPosition = `${-item.xPicShift}px ${-item.yPicShift}px`;
 
+  // вписать угол поворота
+  piece.deg = item.deg;
+  piece.style.transform = `rotate(${item.deg}deg)`;
+
   // вставить во фрагмент
   fragment.append(piece);
 });
 
 // интегрировать в document
-imgWrapper.append(fragment);
+// imgWrapper.append(fragment);
+document.body.append(fragment);
+imgWrapper.remove();
 
 
 /* 
@@ -97,10 +145,14 @@ document.addEventListener('mousedown', function(event) {
 
   // если клик левой клавишей по детали пазла
   if (event.target.classList.contains('piece') && event.which == 1) {
-    event.preventDefault();
 
     // двигаемый элемент
     let activeElem = event.target;
+
+    // отменить дефолтную обработку перетаскивания
+    activeElem.ondragstart = function() {
+      return false;
+    };
 
     // расстояние от краев элемента до места клика
     let shiftX = event.clientX - activeElem.getBoundingClientRect().left;
@@ -138,9 +190,13 @@ document.addEventListener('mousedown', function(event) {
         Array.from(document.querySelectorAll('.piece'))
           .filter((item) => item.id === activeElem.id && item !== activeElem)
           .forEach(function(item) {
-            let itemX = event.pageX - ((activeElem.column - item.column) * elemWidth) - shiftX;
-            let itemY = event.pageY - ((activeElem.row - item.row) * elemHeight) - shiftY;
+
+            let relativeShifts = getRelativeShifts(activeElem, item);
+
+            let itemX = event.pageX - relativeShifts.x - shiftX;
+            let itemY = event.pageY - relativeShifts.y - shiftY;
             moveAt( item, itemX, itemY);
+
           });
       };
     }
@@ -148,12 +204,25 @@ document.addEventListener('mousedown', function(event) {
     // Слушать движение мыши, при смене позиции
     // подгонять положение элемента
     document.addEventListener('mousemove', onMouseMove);
+
+    // ожидать клика правой клавишей
+    activeElem.addEventListener('mousedown', rightClickHandler);
+    
+    // не отображать контекстное меню во время перетаскивания
+    document.addEventListener('contextmenu', preventContextMenu);
   
     // При отпускании клавиши...
-    activeElem.onmouseup = function() {
+    activeElem.onmouseup = function(event) {
 
-      // удалять прослушку движения
+      // не обрабатывать отжатие правой клавиши
+      if (event.which === 3) return;
+
+      // удалять прослушку движения и нажания
       document.removeEventListener('mousemove', onMouseMove);
+      activeElem.removeEventListener('mousedown', rightClickHandler);
+
+      // вернуть контекстное меню
+      document.removeEventListener('contextmenu', preventContextMenu);
 
       // самоудаляться текущему обработчику события
       activeElem.onmouseup = null;
@@ -161,18 +230,19 @@ document.addEventListener('mousedown', function(event) {
       // Получить данные о искомых деталях, присоединить, если есть совпадения
       mergePieces( activeElem, getAllAdjacent(activeElem) );
 
-      // Запустить поиск и слияние при совпадении для каждой детали с таким-же id
-      Array.from(document.querySelectorAll('.piece'))
-      .filter((item) => item.id === activeElem.id && item !== activeElem)
-      .forEach(function(item) {
-        mergePieces( item, getAllAdjacent(item) );
-      });
+      // Если активный элемент - часть группы, запустить поиск совпадений от каждого элемента группы
+      if (activeElem.id) {
+        Array.from(document.querySelectorAll('.piece'))
+          .filter((item) => item.id === activeElem.id && item !== activeElem)
+          .forEach(function(item) {
+            mergePieces( item, getAllAdjacent(item) );
+          });
+      }
     };
 
-    // отменить дефолтную обработку перетаскивания
-    activeElem.ondragstart = function() {
-      return false;
-    };
+    function preventContextMenu(event) {
+      event.preventDefault();
+    }
   }
 });
 
@@ -181,7 +251,107 @@ document.addEventListener('mousedown', function(event) {
 // ---------------------- ФУНКЦИИ ------------------------  
 */ 
 
-// Присоединение элементов. Аргументы: рабочий элемент, массив элементов для присоединения.
+// вычислить сдвиги для целевого элемента относительно активного
+function getRelativeShifts(activeElem, targetElem) {
+
+  let shiftX, shiftY;
+
+  // сдвиги натуральной раскладки
+  let natureX = ((activeElem.column - targetElem.column) * elemWidth);
+  let natureY = ((activeElem.row - targetElem.row) * elemWidth);
+
+  if (!activeElem.deg || activeElem.deg === 360) {
+    shiftX = natureX;
+    shiftY = natureY;
+  } else if (activeElem.deg === 90) {
+    shiftX = -natureY;
+    shiftY = natureX;
+  } else if (activeElem.deg === 180) {
+    shiftX = -natureX;
+    shiftY = -natureY;
+  } else if (activeElem.deg === 270) {
+    shiftX = natureY;
+    shiftY = -natureX;
+  }
+
+  return { x: shiftX, y: shiftY };
+}
+
+
+// Обработка правого клика
+function rightClickHandler(event) {
+
+  const elem = event.target;
+
+  // повернуть элемент
+  rotateElem(elem);
+
+   // если есть связанные - повернуть все
+   if (elem.id) {
+    let elemCoords = elem.getBoundingClientRect();
+
+    Array.from(document.querySelectorAll('.piece'))
+    .filter((item) => item.id === elem.id && item !== elem)
+    .forEach(function(item) {
+
+      // получить относительные сдвиги
+      let relativeShifts = getRelativeShifts(elem, item);
+
+      // анимировать
+      item.style.transitionDuration = TRANSITION_DURATION + 's';
+
+      // новое положение
+      item.style.left = elemCoords.left - relativeShifts.x + 'px';
+      item.style.top = elemCoords.top - relativeShifts.y + 'px';
+
+      // снять анимацию
+      setTimeout( () => item.style.transitionDuration = '', TRANSITION_DURATION * 1000);
+
+      // повернуть
+      rotateElem(item);
+    });
+  }
+}
+
+
+// Поворот элемента
+function rotateElem(elem) {
+  // if (elem.id) return;
+
+  // анимировать поворот
+  elem.style.transitionDuration = TRANSITION_DURATION / 2 + 's';
+
+
+  elem.deg = (elem.deg) ? elem.deg + 90 : 90;
+  elem.style.transform = `rotate(${elem.deg}deg)`;
+
+  // if (!elem.deg) { 
+  //   elem.deg = 90;
+  //   elem.style.transform = 'rotate(90deg)';
+  // } else {
+  //   // elem.deg = (elem.deg + 90 < 361) ? elem.deg + 90 : null;
+  //   elem.deg = elem.deg + 90;
+  //   elem.style.transform = `rotate(${elem.deg + 0}deg)`
+  // };
+
+  // По окончании анимации
+  setTimeout(() => {
+
+    // снять анимацию
+    elem.style.transitionDuration = '';
+
+    // обнулить "transform" для предотвращения анимации в обратную сторону 
+    if (elem.deg >= 360) {
+      elem.style.transform = '';
+      elem.deg = 0;
+    };
+
+  }, TRANSITION_DURATION * 1000);
+}
+
+
+
+// Присоединение элементов (рабочий элемент, массив элементов для присоединения).
 function mergePieces(activeElem, adjElemArray) {
   if (!adjElemArray) return;
 
@@ -194,10 +364,11 @@ function mergePieces(activeElem, adjElemArray) {
       // если оба элемента имеют разные id (еще не сцеплены меж собой)
       if (targetElem.id !== activeElem.id) {
 
-        if (!targetElem.id) { // если целевой элемент не имеет id (не является частью группы сцепленных элементов)...
-          moveToActive(activeElem, targetElem); // придвинуть к активному
-          targetElem.id = activeElem.id; // присвоить общий id с активным (образовать группу)
-        } else { // иначе, целевой - часть группы, выполнить те-же действия для каждого элемента группы
+        // присоединить целевой элемент или группу элементов (сдвинуть, назначить id от активного)
+        if (!targetElem.id) {
+          moveToActive(activeElem, targetElem);
+          targetElem.id = activeElem.id;
+        } else {
           Array.from(document.querySelectorAll('.piece'))
             .filter((item) => targetElem.id && item.id === targetElem.id)
             .forEach(function(item) {
@@ -222,129 +393,102 @@ function moveToActive(activeElem, attachableElem) {
   document.body.append(attachableElem);
 
   // сдвинуть в соответствие с дОлжной позицией относительно активного
-  attachableElem.style.left = activeElem.getBoundingClientRect().left - ((activeElem.column - attachableElem.column) * elemWidth) + 'px';
-  attachableElem.style.top = activeElem.getBoundingClientRect().top - ((activeElem.row - attachableElem.row) * elemHeight) + 'px';
+  let relativeShifts = getRelativeShifts(activeElem, attachableElem);
+  attachableElem.style.left = activeElem.getBoundingClientRect().left - relativeShifts.x + 'px';
+  attachableElem.style.top = activeElem.getBoundingClientRect().top - relativeShifts.y + 'px';
 
   // сбросить анимацию
   setTimeout( () => attachableElem.style.transitionDuration = '', TRANSITION_DURATION * 1000);
 }
 
-// Получить все смежные части мозайки. Возвращает массив
-// подходящих частей, либо null, если подходящих не найдено.
+// Получить подходящие смежные детали мозайки.
+// Возвращается массив деталей или null.
 function getAllAdjacent(activeElem) {
-  const elems = [];
 
-  let left = getAdjacent(activeElem, 'left');
-  if (left) elems.push(left);
+  // массив для найденных
+  const targetElems = [];
 
-  let right = getAdjacent(activeElem, 'right');
-  if (right) elems.push(right);
-
-  let top = getAdjacent(activeElem, 'top');
-  if (top) elems.push(top);
-
-  let bottom = getAdjacent(activeElem, 'bottom');
-  if (bottom) elems.push(bottom);
-
-  return (elems.length > 0) ? elems : null;
-}
-
-// Поиск смежных частей мозайки для данного элемента в заданном направлении.
-// Возвращает найденный элемент или null.
-function getAdjacent(activeElem, direction) {
-
-  // координаты заданного элемента
+  // координаты активного элемента
   let coord = activeElem.getBoundingClientRect();
 
-  // точки "прощупывания" с учетом коэффициента
+  // точки "прощупывания" смежных элементов
   let x, y;
+  let targetElem;
 
-  switch(direction) {
-    case 'left':
-      x = coord.left - SEARCH_SPREAD;
-      y = coord.top;
-      break;
-
-    case 'right':
-      x = coord.right + SEARCH_SPREAD;
-      y = coord.top;
-      break;
-
-    case 'top':
-      x = coord.left;
-      y = coord.top - SEARCH_SPREAD;
-      break;
-
-    case 'bottom':
-      x = coord.left;
-      y = coord.bottom + SEARCH_SPREAD;
-      break;
-  }
-
-  // найденные элементы в указанном направлении
-  // поиск по трем точкам - 2 крайних и одной по центру
-  const adjacents = [];
-
-  if (direction === 'left' || direction === 'right') {
-    adjacents.push( document.elementFromPoint(x, y) );
-    adjacents.push( document.elementFromPoint(x, y + ((coord.bottom - coord.top) / 2)) ); // от центра элемента
-    adjacents.push( document.elementFromPoint(x, coord.bottom) );
-  };
-
-  if (direction === 'top' || direction === 'bottom') {
-    adjacents.push( document.elementFromPoint(x, y) );
-    adjacents.push( document.elementFromPoint(x  + ((coord.right - coord.left) / 2), y)); // от центра элемента
-    adjacents.push( document.elementFromPoint(coord.right, y) );
-  };
-
-  // целевой элемент
-  let targetPiece = null;
-
-  // перебрать найденные, вычислить целевой
-  adjacents.forEach(function(item) {
-    if (item && item.classList.contains('piece') && !targetPiece) {
-
-      switch(direction) {
-
-        case 'left': // условие совпадения: порядковый номер минус один + тот-же ряд элемента
-          if (activeElem.index === item.index + 1 &&
-              activeElem.row === item.row &&
-              Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
-              Math.abs(item.getBoundingClientRect().right - coord.left) <= MERGE_SPREAD) {
-                targetPiece = item;
-          };
-          break;
-
-        case 'right': // условие совпадения: порядковый номер плюс один + тот-же ряд элемента
-          if (activeElem.index === item.index - 1 &&
-              activeElem.row === item.row &&
-              Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
-              Math.abs(item.getBoundingClientRect().left - coord.right) <= MERGE_SPREAD) {
-                targetPiece = item;
-          };
-          break;
-
-        case 'top': // условие совпадения: та-же колонка + ряд меньший на один
-          if (activeElem.column === item.column &&
-              activeElem.row === item.row + 1 &&
-              Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
-              Math.abs(item.getBoundingClientRect().bottom - coord.top) <= MERGE_SPREAD) {
-                targetPiece = item;
-          };
-          break;
-
-        case 'bottom': // условие совпадения: та-же колонка + ряд больший на один
-          if (activeElem.column === item.column &&
-              activeElem.row === item.row - 1 &&
-              Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
-              Math.abs(item.getBoundingClientRect().top - coord.bottom) <= MERGE_SPREAD) {
-                targetPiece = item;
-          };
-          break;
-      };
-    };
+  // Поиск слева
+  x = coord.left - SEARCH_SPREAD;
+  y = coord.top;
+  targetElem = [
+    document.elementFromPoint(x, y),
+    document.elementFromPoint(x, y + (elemWidth / 2)),
+    document.elementFromPoint(x, coord.bottom)
+  ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
+    return activeElem.deg === item.deg &&
+           ((activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 0) ||
+            (activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 90) ||
+            (activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 180) ||
+            (activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 270)) &&
+           Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
+           Math.abs(item.getBoundingClientRect().right - coord.left) <= MERGE_SPREAD
   });
-  return targetPiece;
+  if (targetElem) targetElems.push(targetElem);
+
+  // справа
+  x = coord.right + SEARCH_SPREAD;
+  y = coord.top;
+  targetElem = [
+    document.elementFromPoint(x, y),
+    document.elementFromPoint(x, y + (elemWidth / 2)),
+    document.elementFromPoint(x, coord.bottom)
+  ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
+    return activeElem.deg === item.deg &&
+           ((activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 0) ||
+            (activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 90) ||
+            (activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 180) ||
+            (activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 270)) &&
+           Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
+           Math.abs(item.getBoundingClientRect().left - coord.right) <= MERGE_SPREAD
+  });
+  if (targetElem) targetElems.push(targetElem);
+
+  // сверху
+  x = coord.left;
+  y = coord.top - SEARCH_SPREAD;
+  targetElem = [
+    document.elementFromPoint(x, y),
+    document.elementFromPoint(x  + (elemWidth / 2), y),
+    document.elementFromPoint(coord.right, y)
+  ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
+    return activeElem.deg === item.deg &&
+            ((activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 0) ||
+             (activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 90) ||
+             (activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 180) ||
+             (activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 270)) &&
+           Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
+           Math.abs(item.getBoundingClientRect().bottom - coord.top) <= MERGE_SPREAD
+  });
+  if (targetElem) targetElems.push(targetElem);
+
+  // снизу
+  x = coord.left;
+  y = coord.bottom + SEARCH_SPREAD;
+  targetElem = [
+    document.elementFromPoint(x, y),
+    document.elementFromPoint(x  + (elemWidth / 2), y),
+    document.elementFromPoint(coord.right, y)
+  ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
+    return activeElem.deg === item.deg &&
+            ((activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 0) ||
+             (activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 90) ||
+             (activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 180) ||
+             (activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 270)) &&
+           Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
+           Math.abs(item.getBoundingClientRect().top - coord.bottom) <= MERGE_SPREAD
+  });
+  if (targetElem) targetElems.push(targetElem);
+
+  // Вернуть массив подходящих или null
+  return (targetElems.length > 0) ? targetElems : null;
 }
 
 // управление раскладкой элементов
@@ -369,7 +513,11 @@ function setPositions(pieces, how) {
         // случайное целое для массива position (вариации на понижение,
         // поскольку массив неиспользованных позиции уменьшается с каждой итерацией)
         let random = randomInteger(0, pieces.length - 1 - i);
+        // произвольая (из оставшихся) позиция для каждого следующего элемента
         [pieces[i].left, pieces[i].top] = [positions[random].left, positions[random].top];
+        // произвольный угол поворота
+        pieces[i].deg = randomInteger(0, 3) * 90;
+        // pieces[i].deg = 0;
         // удалить использованную позицию
         positions.splice(random, 1);
       };

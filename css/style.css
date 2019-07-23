@@ -12,22 +12,28 @@ body {
   height: 100vh;
 }
 
-.field__img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
 
 .field {
-  margin-top: 10px;
-  margin-left: 10px;
+  margin: 20px auto;
   width: 1000px;
   min-height: 40px;
+  max-height: 100vh;
 }
 
 .field__img-wrapper {
   outline: 1px solid black;
   position: relative;
+}
+
+.field__img {
+  display: block;
+  width: 100%;
+  height: auto;
+
+  /* object-fit: none; */
+  /* object-position: center; */
+  /* height: 800px; */
+  /* width: 100px; */
 }
 
 .field__overlay {
@@ -41,9 +47,46 @@ body {
 }
 
 .piece {
-  box-shadow: inset 0 0 1px 0 white;
+  box-shadow: inset 0 0 1px white;
+  /* border: 1px solid white; */
   background: url(../img/image.jpg) 0 0 no-repeat;
   background-size: 1000px auto;
   position: absolute;
   cursor: pointer;
+}
+
+
+
+
+
+.test__wrap {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  background-color: blue;
+  margin: 50px auto;
+
+  display: flex;
+}
+
+.test__detail {
+  position: relative;
+
+  background-color: red;
+
+  margin: auto;
+  width: 80%;
+  height: 80%;
+
+  clip-path: url(#test);
+}
+
+.test__svg {
+  display: none;
+
+  position: absolute;
+  margin: auto;
+
+  /* width: 200px; */
+  height: 100%;
 }

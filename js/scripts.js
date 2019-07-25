@@ -22,47 +22,67 @@ const img = document.querySelector('.field__img');
 let fieldWidth = img.offsetWidth;
 let fieldHeight = img.offsetHeight;
 
+// размер части мозайки
+let elemSideLength;
+
+// сдвиги изображения для центровки
+let pictureShifts;
+
 // выбор количества делатей по короткой ширине,
-// все детали - квадратные, по длинной стороне остаток урезается
-if (fieldWidth < fieldHeight) { // если короче ширина
+// все детали - квадратные, по длинной стороне остаток картинки урезается
+if (fieldWidth < fieldHeight) { // для вертикальной картинки
 
   HORISONTAL_AMOUNT = ELEMENT_COUNT;
   // размер куска
-  const elemSideLength = fieldWidth / HORISONTAL_AMOUNT;
+  elemSideLength = fieldWidth / ELEMENT_COUNT;
   // количество вмещаемых элементов по высоте
   VERTICAL_AMOUNT = Math.trunc(fieldHeight / elemSideLength);
   // Требуемая высота
   const targetHeight = elemSideLength * VERTICAL_AMOUNT;
 
-  // Подрезать картинку
-  img.style.objectFit = 'none';
-  img.style.objectPosition = 'center';
-  img.style.height = targetHeight + 'px';
+  // Боковой сдвиг для центрирования картинки в раскладке
+  pictureShifts = {
+    x: 0,
+    y: (fieldHeight - targetHeight) / 2
+  };
 
+  // Подрезать картинку по краям
+  // img.style.objectFit = 'none';
+  // img.style.objectPosition = 'center';
+  // img.style.height = targetHeight + 'px';
+
+  // запомнить подрезанный размер
   fieldHeight = targetHeight;
 
-} else { // если короче высота
+} else { // для горизонтальной картинки
 
   VERTICAL_AMOUNT = ELEMENT_COUNT;
   // размер куска
-  const elemSideLength = fieldHeight / VERTICAL_AMOUNT;
+  elemSideLength = fieldHeight / ELEMENT_COUNT;
   // количество вмещаемых элементов по ширине
   HORISONTAL_AMOUNT = Math.trunc(fieldWidth / elemSideLength);
   // Требуемая ширина
   const targetWidth = elemSideLength * HORISONTAL_AMOUNT;
 
-  // Подрезать картинку
-  img.style.objectFit = 'none';
-  img.style.objectPosition = 'center';
-  img.style.width = targetWidth + 'px';
+  // Боковой сдвиг для центрирования картинки в раскладке
+  pictureShifts = {
+    x: (fieldWidth - targetWidth) / 2,
+    y: 0
+  };
 
+  // Подрезать картинку по краям
+  // img.style.objectFit = 'none';
+  // img.style.objectPosition = 'center';
+  // img.style.width = targetWidth + 'px';
+
+  // запомнить подрезанный размер
   fieldWidth = targetWidth;
 
 };
 
-// размеры элементов
-const elemWidth = fieldWidth / HORISONTAL_AMOUNT;
-const elemHeight = fieldHeight / VERTICAL_AMOUNT;
+// размеры сторон элементов
+const elemWidth = elemSideLength;
+const elemHeight = elemSideLength;
 
 // массив для объектов, описывающих элементы
 const pieces = [];
@@ -85,7 +105,7 @@ for (let i = 0; i < amount; i++) {
   pieces.push( new CreatePuzzElem(elemWidth, elemHeight, xShift, yShift, row, column) );
 
   // смена позиции для следующего элемента
-  if (xShift < (elemWidth * (HORISONTAL_AMOUNT - 1))) { // если не переходим на следующий ряд
+  if ( !Number.isInteger( (i + 1) / HORISONTAL_AMOUNT ) ) { // если деталь должна остаться в том-же ряду
     column++; // следующая колонка
     xShift += elemWidth; // левый край следующего элемента к правому предыдущего
   } else { // при переходе на следующий ряд
@@ -105,24 +125,27 @@ let fragment = document.createDocumentFragment();
 // Создать DOM-элементы
 pieces.forEach(function(item, index) {
 
+  // создать с классами
   let piece = document.createElement('div');
   piece.className = `piece piece-${index + 1} row-${item.row} column-${item.column}`;
+
+  // мета
   piece.index = index + 1;
   piece.row = item.row;
   piece.column = item.column;
 
-  // вписать размер
+  // размер
   piece.style.width = item.width + 'px';
   piece.style.height = item.height + 'px';
 
-  // вписать расположение
+  // расположение
   piece.style.left = item.left + 'px';
   piece.style.top = item.top + 'px';
 
-  // вписать данные о положении картинки в элементе
+  // данные о положении картинки в элементе
   piece.style.backgroundPosition = `${-item.xPicShift}px ${-item.yPicShift}px`;
 
-  // вписать угол поворота
+  // угол поворота
   piece.deg = item.deg;
   piece.style.transform = `rotate(${item.deg}deg)`;
 
@@ -131,8 +154,9 @@ pieces.forEach(function(item, index) {
 });
 
 // интегрировать в document
-// imgWrapper.append(fragment);
 document.body.append(fragment);
+
+// удалить подложку
 imgWrapper.remove();
 
 
@@ -143,7 +167,7 @@ imgWrapper.remove();
 // Слушать "вжатие" мыши на документе
 document.addEventListener('mousedown', function(event) {
 
-  // если клик левой клавишей по детали пазла
+  // обработать клик левой клавишей по детали пазла
   if (event.target.classList.contains('piece') && event.which == 1) {
 
     // двигаемый элемент
@@ -154,7 +178,7 @@ document.addEventListener('mousedown', function(event) {
       return false;
     };
 
-    // расстояние от краев элемента до места клика
+    // смещения от краев элемента до места клика
     let shiftX = event.clientX - activeElem.getBoundingClientRect().left;
     let shiftY = event.clientY - activeElem.getBoundingClientRect().top;
   
@@ -173,52 +197,22 @@ document.addEventListener('mousedown', function(event) {
     // захватить элемент под курсор
     moveAt(activeElem, event.pageX - shiftX, event.pageY - shiftY);
   
-    // двигать элемент относительно краев браузера
-    function moveAt(activeElem, x, y) {
-      activeElem.style.left = x + 'px';
-      activeElem.style.top = y + 'px';
-    }
+    // двигать элемент с курсором
+    document.addEventListener('mousemove', mouseMoveHandler);
 
-    // обработка события движения с захваченным элементом
-    function onMouseMove(event) {
-
-      // двигать сам элемент
-      moveAt(activeElem, event.pageX - shiftX, event.pageY - shiftY);
-
-      // если элемент имеет id (часть группы) - двигать всю группу
-      if (activeElem.id) {
-        Array.from(document.querySelectorAll('.piece'))
-          .filter((item) => item.id === activeElem.id && item !== activeElem)
-          .forEach(function(item) {
-
-            let relativeShifts = getRelativeShifts(activeElem, item);
-
-            let itemX = event.pageX - relativeShifts.x - shiftX;
-            let itemY = event.pageY - relativeShifts.y - shiftY;
-            moveAt( item, itemX, itemY);
-
-          });
-      };
-    }
-  
-    // Слушать движение мыши, при смене позиции
-    // подгонять положение элемента
-    document.addEventListener('mousemove', onMouseMove);
-
-    // ожидать клика правой клавишей
+    // вращать элемент или группу элементов правой клавишей,
+    // предотвратить выпадение контекстного меню
     activeElem.addEventListener('mousedown', rightClickHandler);
-    
-    // не отображать контекстное меню во время перетаскивания
     document.addEventListener('contextmenu', preventContextMenu);
   
     // При отпускании клавиши...
     activeElem.onmouseup = function(event) {
 
-      // не обрабатывать отжатие правой клавиши
+      // правая клавиша обрабатывает вращение элемента
       if (event.which === 3) return;
 
       // удалять прослушку движения и нажания
-      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mousemove', mouseMoveHandler);
       activeElem.removeEventListener('mousedown', rightClickHandler);
 
       // вернуть контекстное меню
@@ -240,6 +234,37 @@ document.addEventListener('mousedown', function(event) {
       }
     };
 
+    // двигать элемент относительно краев браузера
+    function moveAt(activeElem, x, y) {
+      activeElem.style.left = x + 'px';
+      activeElem.style.top = y + 'px';
+    }
+
+    // движение элемента или группы
+    function mouseMoveHandler(event) {
+
+      // двигать сам элемент
+      moveAt(activeElem, event.pageX - shiftX, event.pageY - shiftY);
+
+      // если элемент имеет id (часть группы) - двигать всю группу
+      if (activeElem.id) {
+        Array.from(document.querySelectorAll('.piece'))
+          .filter((item) => item.id === activeElem.id && item !== activeElem)
+          .forEach(function(item) {
+
+            // получить сдвиги отностиельно активного элемента
+            let relativeShifts = getRelativeShifts(activeElem, item);
+            // требуемое положение относительно вьюпорта
+            let itemX = event.pageX - relativeShifts.x - shiftX;
+            let itemY = event.pageY - relativeShifts.y - shiftY;
+            // двигать вместе с активным
+            moveAt( item, itemX, itemY);
+
+          });
+      };
+    }
+
+    // предотвращение вызова контекстного меню
     function preventContextMenu(event) {
       event.preventDefault();
     }
@@ -251,15 +276,17 @@ document.addEventListener('mousedown', function(event) {
 // ---------------------- ФУНКЦИИ ------------------------  
 */ 
 
-// вычислить сдвиги для целевого элемента относительно активного
+// получить смещения позиции целевого элемента
+// относительно активного (объект с ключами x, y)
 function getRelativeShifts(activeElem, targetElem) {
 
   let shiftX, shiftY;
 
-  // сдвиги натуральной раскладки
+  // сдвиги при натуральной раскладке
   let natureX = ((activeElem.column - targetElem.column) * elemWidth);
-  let natureY = ((activeElem.row - targetElem.row) * elemWidth);
+  let natureY = ((activeElem.row - targetElem.row) * elemHeight);
 
+  // сдвиги при поворотах
   if (!activeElem.deg || activeElem.deg === 360) {
     shiftX = natureX;
     shiftY = natureY;
@@ -278,7 +305,8 @@ function getRelativeShifts(activeElem, targetElem) {
 }
 
 
-// Обработка правого клика
+// Обработка правого клика - поворот элемента
+// или группы связанных элементов
 function rightClickHandler(event) {
 
   const elem = event.target;
@@ -315,40 +343,29 @@ function rightClickHandler(event) {
 
 
 // Поворот элемента
+// (анимация вдвое короче анимации происоединения)
 function rotateElem(elem) {
-  // if (elem.id) return;
 
   // анимировать поворот
   elem.style.transitionDuration = TRANSITION_DURATION / 2 + 's';
 
-
+  // запомнить угол, повернуть
   elem.deg = (elem.deg) ? elem.deg + 90 : 90;
   elem.style.transform = `rotate(${elem.deg}deg)`;
 
-  // if (!elem.deg) { 
-  //   elem.deg = 90;
-  //   elem.style.transform = 'rotate(90deg)';
-  // } else {
-  //   // elem.deg = (elem.deg + 90 < 361) ? elem.deg + 90 : null;
-  //   elem.deg = elem.deg + 90;
-  //   elem.style.transform = `rotate(${elem.deg + 0}deg)`
-  // };
-
-  // По окончании анимации
   setTimeout(() => {
-
-    // снять анимацию
+    
+    // сброс анимации
     elem.style.transitionDuration = '';
 
-    // обнулить "transform" для предотвращения анимации в обратную сторону 
+    // обнулить "transform" для предотвращения анимации в обратную сторону
     if (elem.deg >= 360) {
       elem.style.transform = '';
       elem.deg = 0;
     };
 
-  }, TRANSITION_DURATION * 1000);
+  }, TRANSITION_DURATION * 1000 / 2);
 }
-
 
 
 // Присоединение элементов (рабочий элемент, массив элементов для присоединения).
@@ -380,7 +397,8 @@ function mergePieces(activeElem, adjElemArray) {
     }
 }
 
-// Сдвиг пассивного элемента к активному
+
+// Сдвиг прикрепляемого элемента к активному
 function moveToActive(activeElem, attachableElem) {
 
   // выдернуть на уровень document в то-же место, установить плавную анимацию
@@ -401,6 +419,7 @@ function moveToActive(activeElem, attachableElem) {
   setTimeout( () => attachableElem.style.transitionDuration = '', TRANSITION_DURATION * 1000);
 }
 
+
 // Получить подходящие смежные детали мозайки.
 // Возвращается массив деталей или null.
 function getAllAdjacent(activeElem) {
@@ -420,7 +439,7 @@ function getAllAdjacent(activeElem) {
   y = coord.top;
   targetElem = [
     document.elementFromPoint(x, y),
-    document.elementFromPoint(x, y + (elemWidth / 2)),
+    document.elementFromPoint(x, y + (elemHeight / 2)),
     document.elementFromPoint(x, coord.bottom)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
     return activeElem.deg === item.deg &&
@@ -438,7 +457,7 @@ function getAllAdjacent(activeElem) {
   y = coord.top;
   targetElem = [
     document.elementFromPoint(x, y),
-    document.elementFromPoint(x, y + (elemWidth / 2)),
+    document.elementFromPoint(x, y + (elemHeight / 2)),
     document.elementFromPoint(x, coord.bottom)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
     return activeElem.deg === item.deg &&
@@ -491,6 +510,7 @@ function getAllAdjacent(activeElem) {
   return (targetElems.length > 0) ? targetElems : null;
 }
 
+
 // управление раскладкой элементов
 function setPositions(pieces, how) {
 
@@ -499,15 +519,16 @@ function setPositions(pieces, how) {
     // Расположение в соответствии с исходной картинкой
     case 'direct':
       pieces.forEach(function(item) {
-        item.left = item.xPicShift;
-        item.top = item.yPicShift;
+        item.left = item.xPicShift - pictureShifts.x;
+        item.top = item.yPicShift - pictureShifts.y;
+        item.deg = 0;
       });
       break;
 
     // Рандомное расположение
     case 'random':
       // массив объектов, описывающих возможные позиции
-      let positions = pieces.map( item => ({ left: item.xPicShift, top: item.yPicShift }) );
+      let positions = pieces.map( item => ({ left: item.xPicShift - pictureShifts.x, top: item.yPicShift - pictureShifts.y }) );
 
       for (let i = 0; i < pieces.length; i++) {
         // случайное целое для массива position (вариации на понижение,
@@ -525,15 +546,17 @@ function setPositions(pieces, how) {
   }
 }
 
+
 // конструктор элементов
 function CreatePuzzElem(width, height, xShift, yShift, row, column) {
   this.width = width;
   this.height = height;
-  this.xPicShift = xShift;
-  this.yPicShift = yShift;
+  this.xPicShift = xShift + pictureShifts.x;
+  this.yPicShift = yShift + pictureShifts.y;
   this.row = row;
   this.column = column;
 }
+
 
 // Случайно целое в заданном диапазоне
 function randomInteger(min, max) {

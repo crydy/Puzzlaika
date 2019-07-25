@@ -37,7 +37,7 @@ body {
 }
 
 .field__overlay {
-  /* display: none; */
+  display: none;
   position: absolute;
   background-color: #081208;
   top: 0;

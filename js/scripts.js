@@ -1,12 +1,5 @@
 'use strict'
 
-// количество элементов по короткой стороне
-const ELEMENT_COUNT = 5;
-
-// количество элементов
-let HORISONTAL_AMOUNT;
-let VERTICAL_AMOUNT;
-
 // длительность анимации слияния (секунды)
 const TRANSITION_DURATION = .3;
 // коэффициент расширения области чувствительности поиска смежных элементов (сдвиг от края)
@@ -14,13 +7,171 @@ const SEARCH_SPREAD = 20;
 // размах стыковки при совпадении (степень допустимого смещения в стороны от "оси стыковки")
 const MERGE_SPREAD = 20;
 
-// получить изображение и обертку
-const imgWrapper = document.querySelector('.field__img-wrapper');
-const img = document.querySelector('.field__img');
+// Элементы стартового меню
+let startMenu = document.querySelector('.start-menu');
+let inputFile = startMenu.querySelector('.start-menu__inputfile');
+let label = startMenu.querySelector('.start-menu__inputfile-label');
+let startButton = startMenu.querySelector('.start-menu__start-button');
+let inputAmount = startMenu.querySelector('#pieces-amount');
 
-// размер исходной картинки
-let fieldWidth = img.offsetWidth;
-let fieldHeight = img.offsetHeight;
+// Элементы углового меню
+let menu = document.querySelector('.menu');
+let menuToggle = menu.querySelector('.menu__toggle');
+let toggle = menu.querySelector('.menu__toggle');
+let toggleLi = toggle.closest('.menu__item');
+
+// Путь к юзерской картинке
+let userImageURL;
+
+// количество элементов
+let elementCount;
+let horizontal_amount;
+let vertical_amount;
+
+// Запретить прокрутку
+document.body.style.overflow = "hidden";
+
+// Свернуть меню без анимации
+menuToggleClickHandler('no-trans');
+menu.hidden = true;
+
+// Слушать загрузку файла
+inputFile.addEventListener('change', inputFileChangeHandler);
+// Слушать кнопку старта игры
+startButton.addEventListener('click', startButtonClickHandler);
+// Открывать угловое меню по клику
+menuToggle.addEventListener('click', menuToggleClickHandler);
+
+
+// Получить ссылку на юзерский файл
+function inputFileChangeHandler() {
+  // получить загруженный файл
+  let file = inputFile.files[0];
+  // преобразовать в ссылку
+  let imageURL = URL.createObjectURL(file);
+
+  // получить размер изображения
+  getPictureSize('outer', imageURL).then(
+    (result) => {
+      label.textContent = 'Your image is downloaded';
+      userImageURL = result;
+    }
+  );
+}
+
+// Начать игру
+function startButtonClickHandler() {
+  // Проверить наличие юзерского файла
+  if (!userImageURL) {
+    getPictureSize('inner').then(createPazzle);
+  };
+  
+  // Отобразить угловое меню
+  menu.hidden = false;
+  // Спрятать стартовую менюшку
+  startMenu.hidden = true;
+  // количество элементов по короткой стороне
+  elementCount = +inputAmount.value;
+  // Раскидать пазл
+  createPazzle(userImageURL);
+}
+
+// Свернуть и развернуть меню
+function menuToggleClickHandler() {
+
+  // расстояние до верха браузера
+  let menuInnerSpread = toggleLi.offsetTop - menu.offsetTop;
+
+  // скрыть без анимации (при загрузке страницы)
+  if (arguments[0] === 'no-trans') {
+    let trDur = parseFloat(getComputedStyle(menu).transitionDuration);
+    menu.style.transitionDuration = '0s';
+    setTimeout(() => {menu.style.transitionDuration = trDur + 's'}, trDur + 's');
+  }
+  
+  // открывать-закрывать по клику
+  if(!menu.classList.contains('menu--closed')) {
+    menu.style.top = -menuInnerSpread + 'px';
+    menu.classList.add('menu--closed');
+    toggle.textContent = 'menu';
+  } else {
+    menu.classList.remove('menu--closed');
+    menu.style.top = 0;
+    toggle.textContent = 'hide';
+  };
+}
+
+// получить промис с размерами изображения
+function getPictureSize(method, source) {
+
+  let image = document.createElement('img');
+
+  switch(method) {
+
+    case 'inner':
+      return new Promise(function(resolve) {
+        image.src = 'img/image.jpg';
+        image.onload = function() {
+          resolve( {src: this.src, width: this.width, height: this.height} );
+        };
+      });
+    
+    case 'outer':
+      return new Promise(function(resolve) {
+        image.src = source;
+        image.onload = function() {
+          resolve( {src: this.src, width: this.width, height: this.height} );
+        };
+      });
+  }
+}
+
+// разложить пазл
+function createPazzle(image) {
+  
+  // размеры изображения
+  let fieldWidth = image.width;
+  let fieldHeight = image.height;
+
+  // размеры вьюпорта
+  let windowWidth = document.documentElement.clientWidth;
+  let windowHeight = document.documentElement.clientHeight;
+
+  // Вписать во вьюпорт
+  if (windowHeight < fieldHeight) {
+
+    // коэффициент уменьшения
+    let yRatio = windowHeight / fieldHeight;
+
+    // подогнать высоту под вьюпорт
+    fieldHeight = windowHeight;
+
+    // пропорционально подогнать ширину
+    fieldWidth = fieldWidth * yRatio;
+
+    // пропорционально скорректировать фон деталей
+    let piecesStyle = document.createElement('style');
+    piecesStyle.innerHTML = `.piece {background-size: auto ${fieldHeight}px;}`;
+    document.querySelector('head').append(piecesStyle);
+
+  }
+
+  if (windowWidth < fieldWidth) {
+
+    // коэффициент уменьшения
+    let xRatio = windowWidth / fieldWidth;
+
+    // подогнать ширину под вьюпорт
+    fieldWidth = windowWidth;
+
+    // пропорционально подогнать высоту
+    fieldHeight = fieldHeight * xRatio;
+
+    // пропорционально скорректировать фон деталей
+    let piecesStyle = document.createElement('style');
+    piecesStyle.innerHTML = `.piece {background-size: ${fieldWidth}px auto;}`;
+    document.querySelector('head').append(piecesStyle);
+  }
 
 // размер части мозайки
 let elemSideLength;
@@ -32,13 +183,13 @@ let pictureShifts;
 // все детали - квадратные, по длинной стороне остаток картинки урезается
 if (fieldWidth < fieldHeight) { // для вертикальной картинки
 
-  HORISONTAL_AMOUNT = ELEMENT_COUNT;
+  horizontal_amount = elementCount;
   // размер куска
-  elemSideLength = fieldWidth / ELEMENT_COUNT;
+  elemSideLength = fieldWidth / elementCount;
   // количество вмещаемых элементов по высоте
-  VERTICAL_AMOUNT = Math.trunc(fieldHeight / elemSideLength);
+  vertical_amount = Math.trunc(fieldHeight / elemSideLength);
   // Требуемая высота
-  const targetHeight = elemSideLength * VERTICAL_AMOUNT;
+  const targetHeight = elemSideLength * vertical_amount;
 
   // Боковой сдвиг для центрирования картинки в раскладке
   pictureShifts = {
@@ -56,13 +207,13 @@ if (fieldWidth < fieldHeight) { // для вертикальной картин�
 
 } else { // для горизонтальной картинки
 
-  VERTICAL_AMOUNT = ELEMENT_COUNT;
+  vertical_amount = elementCount;
   // размер куска
-  elemSideLength = fieldHeight / ELEMENT_COUNT;
+  elemSideLength = fieldHeight / elementCount;
   // количество вмещаемых элементов по ширине
-  HORISONTAL_AMOUNT = Math.trunc(fieldWidth / elemSideLength);
+  horizontal_amount = Math.trunc(fieldWidth / elemSideLength);
   // Требуемая ширина
-  const targetWidth = elemSideLength * HORISONTAL_AMOUNT;
+  const targetWidth = elemSideLength * horizontal_amount;
 
   // Боковой сдвиг для центрирования картинки в раскладке
   pictureShifts = {
@@ -88,7 +239,7 @@ const elemHeight = elemSideLength;
 const pieces = [];
 
 // общее количество элементов
-const amount = HORISONTAL_AMOUNT * VERTICAL_AMOUNT;
+const amount = horizontal_amount * vertical_amount;
 
 // хранение сдвигов
 let xShift = 0;
@@ -102,10 +253,10 @@ let column = 1;
 for (let i = 0; i < amount; i++) {
 
   // новый элемент в массив
-  pieces.push( new CreatePuzzElem(elemWidth, elemHeight, xShift, yShift, row, column) );
+  pieces.push( new CreatePuzzElem(elemWidth, elemHeight, xShift, yShift, row, column, pictureShifts) );
 
   // смена позиции для следующего элемента
-  if ( !Number.isInteger( (i + 1) / HORISONTAL_AMOUNT ) ) { // если деталь должна остаться в том-же ряду
+  if ( !Number.isInteger( (i + 1) / horizontal_amount ) ) { // если деталь должна остаться в том-же ряду
     column++; // следующая колонка
     xShift += elemWidth; // левый край следующего элемента к правому предыдущего
   } else { // при переходе на следующий ряд
@@ -117,7 +268,7 @@ for (let i = 0; i < amount; i++) {
 }
 
 // Настроить раскладку
-setPositions(pieces, 'random');
+setPositions(pieces, pictureShifts, 'random');
 
 // Фрагмент для накопления
 let fragment = document.createDocumentFragment();
@@ -139,10 +290,12 @@ pieces.forEach(function(item, index) {
   piece.style.height = item.height + 'px';
 
   // расположение
-  piece.style.left = item.left + 'px';
-  piece.style.top = item.top + 'px';
+  piece.style.left = (document.documentElement.clientWidth - fieldWidth) / 2 + item.left + 'px';
+  piece.style.top = (document.documentElement.clientHeight - fieldHeight) / 2 + item.top + 'px';
+  // piece.style.top = item.top + 'px';
 
-  // данные о положении картинки в элементе
+  // фон и положение фона
+  piece.style.backgroundImage = `url(${image.src})`;
   piece.style.backgroundPosition = `${-item.xPicShift}px ${-item.yPicShift}px`;
 
   // угол поворота
@@ -153,11 +306,12 @@ pieces.forEach(function(item, index) {
   fragment.append(piece);
 });
 
+
+
+
+
 // интегрировать в document
 document.body.append(fragment);
-
-// удалить подложку
-imgWrapper.remove();
 
 
 /* 
@@ -272,12 +426,70 @@ document.addEventListener('mousedown', function(event) {
 });
 
 
+
+
+
 /* 
 // ---------------------- ФУНКЦИИ ------------------------  
 */ 
 
+
+// Случайно целое в заданном диапазоне
+function randomInteger(min, max) {
+  let rand = min + Math.random() * (max + 1 - min);
+  return Math.floor(rand);
+}
+
+
+// конструктор элементов
+function CreatePuzzElem(width, height, xShift, yShift, row, column, pictureShifts) {
+  this.width = width;
+  this.height = height;
+  this.xPicShift = xShift + pictureShifts.x;
+  this.yPicShift = yShift + pictureShifts.y;
+  this.row = row;
+  this.column = column;
+}
+
+
+// управление раскладкой элементов
+function setPositions(pieces, pictureShifts, how) {
+
+  switch(how) {
+
+    // Расположение в соответствии с исходной картинкой
+    case 'direct':
+      pieces.forEach(function(item) {
+        item.left = item.xPicShift - pictureShifts.x;
+        item.top = item.yPicShift - pictureShifts.y;
+        item.deg = 0;
+      });
+      break;
+
+    // Рандомное расположение
+    case 'random':
+      // массив объектов, описывающих возможные позиции
+      let positions = pieces.map( item => ({ left: item.xPicShift - pictureShifts.x, top: item.yPicShift - pictureShifts.y }) );
+
+      for (let i = 0; i < pieces.length; i++) {
+        // случайное целое для массива position (вариации на понижение,
+        // поскольку массив неиспользованных позиции уменьшается с каждой итерацией)
+        let random = randomInteger(0, pieces.length - 1 - i);
+        // произвольая (из оставшихся) позиция для каждого следующего элемента
+        [pieces[i].left, pieces[i].top] = [positions[random].left, positions[random].top];
+        // произвольный угол поворота
+        pieces[i].deg = randomInteger(0, 3) * 90;
+        // pieces[i].deg = 0;
+        // удалить использованную позицию
+        positions.splice(random, 1);
+      };
+      break;
+  }
+}
+
+
 // получить смещения позиции целевого элемента
-// относительно активного (объект с ключами x, y)
+// относительно активного (возвращает объект с ключами x, y)
 function getRelativeShifts(activeElem, targetElem) {
 
   let shiftX, shiftY;
@@ -302,121 +514,6 @@ function getRelativeShifts(activeElem, targetElem) {
   }
 
   return { x: shiftX, y: shiftY };
-}
-
-
-// Обработка правого клика - поворот элемента
-// или группы связанных элементов
-function rightClickHandler(event) {
-
-  const elem = event.target;
-
-  // повернуть элемент
-  rotateElem(elem);
-
-   // если есть связанные - повернуть все
-   if (elem.id) {
-    let elemCoords = elem.getBoundingClientRect();
-
-    Array.from(document.querySelectorAll('.piece'))
-    .filter((item) => item.id === elem.id && item !== elem)
-    .forEach(function(item) {
-
-      // получить относительные сдвиги
-      let relativeShifts = getRelativeShifts(elem, item);
-
-      // анимировать
-      item.style.transitionDuration = TRANSITION_DURATION + 's';
-
-      // новое положение
-      item.style.left = elemCoords.left - relativeShifts.x + 'px';
-      item.style.top = elemCoords.top - relativeShifts.y + 'px';
-
-      // снять анимацию
-      setTimeout( () => item.style.transitionDuration = '', TRANSITION_DURATION * 1000);
-
-      // повернуть
-      rotateElem(item);
-    });
-  }
-}
-
-
-// Поворот элемента
-// (анимация вдвое короче анимации происоединения)
-function rotateElem(elem) {
-
-  // анимировать поворот
-  elem.style.transitionDuration = TRANSITION_DURATION / 2 + 's';
-
-  // запомнить угол, повернуть
-  elem.deg = (elem.deg) ? elem.deg + 90 : 90;
-  elem.style.transform = `rotate(${elem.deg}deg)`;
-
-  setTimeout(() => {
-    
-    // сброс анимации
-    elem.style.transitionDuration = '';
-
-    // обнулить "transform" для предотвращения анимации в обратную сторону
-    if (elem.deg >= 360) {
-      elem.style.transform = '';
-      elem.deg = 0;
-    };
-
-  }, TRANSITION_DURATION * 1000 / 2);
-}
-
-
-// Присоединение элементов (рабочий элемент, массив элементов для присоединения).
-function mergePieces(activeElem, adjElemArray) {
-  if (!adjElemArray) return;
-
-  // сгенерировать общий идентификатор для сцепляемых элементов
-  if (!activeElem.id) activeElem.id = `f${(~~(Math.random()*1e8)).toString(16)}`;
-
-    // присоединить каждый из массива, либо группу элементов, частью которой является присоединяемый
-    for (let targetElem of adjElemArray) {
-
-      // если оба элемента имеют разные id (еще не сцеплены меж собой)
-      if (targetElem.id !== activeElem.id) {
-
-        // присоединить целевой элемент или группу элементов (сдвинуть, назначить id от активного)
-        if (!targetElem.id) {
-          moveToActive(activeElem, targetElem);
-          targetElem.id = activeElem.id;
-        } else {
-          Array.from(document.querySelectorAll('.piece'))
-            .filter((item) => targetElem.id && item.id === targetElem.id)
-            .forEach(function(item) {
-              moveToActive(activeElem, item);
-              item.id = activeElem.id;
-            });
-        }
-      }
-    }
-}
-
-
-// Сдвиг прикрепляемого элемента к активному
-function moveToActive(activeElem, attachableElem) {
-
-  // выдернуть на уровень document в то-же место, установить плавную анимацию
-  let initCoord = attachableElem.getBoundingClientRect();
-  attachableElem.style.position = 'absolute';
-  attachableElem.style.zIndex = 1000;
-  attachableElem.style.left = initCoord.left + 'px';
-  attachableElem.style.top = initCoord.top + 'px';
-  attachableElem.style.transitionDuration = TRANSITION_DURATION + 's';
-  document.body.append(attachableElem);
-
-  // сдвинуть в соответствие с дОлжной позицией относительно активного
-  let relativeShifts = getRelativeShifts(activeElem, attachableElem);
-  attachableElem.style.left = activeElem.getBoundingClientRect().left - relativeShifts.x + 'px';
-  attachableElem.style.top = activeElem.getBoundingClientRect().top - relativeShifts.y + 'px';
-
-  // сбросить анимацию
-  setTimeout( () => attachableElem.style.transitionDuration = '', TRANSITION_DURATION * 1000);
 }
 
 
@@ -511,55 +608,117 @@ function getAllAdjacent(activeElem) {
 }
 
 
-// управление раскладкой элементов
-function setPositions(pieces, how) {
+// Сдвиг прикрепляемого элемента к активному
+function moveToActive(activeElem, attachableElem) {
 
-  switch(how) {
+  // выдернуть на уровень document в то-же место, установить плавную анимацию
+  let initCoord = attachableElem.getBoundingClientRect();
+  attachableElem.style.position = 'absolute';
+  attachableElem.style.zIndex = 1000;
+  attachableElem.style.left = initCoord.left + 'px';
+  attachableElem.style.top = initCoord.top + 'px';
+  attachableElem.style.transitionDuration = TRANSITION_DURATION + 's';
+  document.body.append(attachableElem);
 
-    // Расположение в соответствии с исходной картинкой
-    case 'direct':
-      pieces.forEach(function(item) {
-        item.left = item.xPicShift - pictureShifts.x;
-        item.top = item.yPicShift - pictureShifts.y;
-        item.deg = 0;
-      });
-      break;
+  // сдвинуть в соответствие с дОлжной позицией относительно активного
+  let relativeShifts = getRelativeShifts(activeElem, attachableElem);
+  attachableElem.style.left = activeElem.getBoundingClientRect().left - relativeShifts.x + 'px';
+  attachableElem.style.top = activeElem.getBoundingClientRect().top - relativeShifts.y + 'px';
 
-    // Рандомное расположение
-    case 'random':
-      // массив объектов, описывающих возможные позиции
-      let positions = pieces.map( item => ({ left: item.xPicShift - pictureShifts.x, top: item.yPicShift - pictureShifts.y }) );
+  // сбросить анимацию
+  setTimeout( () => attachableElem.style.transitionDuration = '', TRANSITION_DURATION * 1000);
+}
 
-      for (let i = 0; i < pieces.length; i++) {
-        // случайное целое для массива position (вариации на понижение,
-        // поскольку массив неиспользованных позиции уменьшается с каждой итерацией)
-        let random = randomInteger(0, pieces.length - 1 - i);
-        // произвольая (из оставшихся) позиция для каждого следующего элемента
-        [pieces[i].left, pieces[i].top] = [positions[random].left, positions[random].top];
-        // произвольный угол поворота
-        pieces[i].deg = randomInteger(0, 3) * 90;
-        // pieces[i].deg = 0;
-        // удалить использованную позицию
-        positions.splice(random, 1);
-      };
-      break;
+
+// Присоединение элементов (рабочий элемент, массив элементов для присоединения).
+function mergePieces(activeElem, adjElemArray) {
+  if (!adjElemArray) return;
+
+  // сгенерировать общий идентификатор для сцепляемых элементов
+  if (!activeElem.id) activeElem.id = `f${(~~(Math.random()*1e8)).toString(16)}`;
+
+    // присоединить каждый из массива, либо группу элементов, частью которой является присоединяемый
+    for (let targetElem of adjElemArray) {
+
+      // если оба элемента имеют разные id (еще не сцеплены меж собой)
+      if (targetElem.id !== activeElem.id) {
+
+        // присоединить целевой элемент или группу элементов (сдвинуть, назначить id от активного)
+        if (!targetElem.id) {
+          moveToActive(activeElem, targetElem);
+          targetElem.id = activeElem.id;
+        } else {
+          Array.from(document.querySelectorAll('.piece'))
+            .filter((item) => targetElem.id && item.id === targetElem.id)
+            .forEach(function(item) {
+              moveToActive(activeElem, item);
+              item.id = activeElem.id;
+            });
+        }
+      }
+    }
+}
+
+
+// Поворот элемента
+// (анимация вдвое короче анимации происоединения)
+function rotateElem(elem) {
+
+  // анимировать поворот
+  elem.style.transitionDuration = TRANSITION_DURATION / 2 + 's';
+
+  // запомнить угол, повернуть
+  elem.deg = (elem.deg) ? elem.deg + 90 : 90;
+  elem.style.transform = `rotate(${elem.deg}deg)`;
+
+  setTimeout(() => {
+    
+    // сброс анимации
+    elem.style.transitionDuration = '';
+
+    // обнулить "transform" для предотвращения анимации в обратную сторону
+    if (elem.deg >= 360) {
+      elem.style.transform = '';
+      elem.deg = 0;
+    };
+
+  }, TRANSITION_DURATION * 1000 / 2);
+}
+
+// Обработка правого клика - поворот элемента
+// или группы связанных элементов
+function rightClickHandler(event) {
+
+  const elem = event.target;
+
+  // повернуть элемент
+  rotateElem(elem);
+
+   // если есть связанные - повернуть все
+   if (elem.id) {
+    let elemCoords = elem.getBoundingClientRect();
+
+    Array.from(document.querySelectorAll('.piece'))
+    .filter((item) => item.id === elem.id && item !== elem)
+    .forEach(function(item) {
+
+      // получить относительные сдвиги
+      let relativeShifts = getRelativeShifts(elem, item);
+
+      // анимировать
+      item.style.transitionDuration = TRANSITION_DURATION + 's';
+
+      // новое положение
+      item.style.left = elemCoords.left - relativeShifts.x + 'px';
+      item.style.top = elemCoords.top - relativeShifts.y + 'px';
+
+      // снять анимацию
+      setTimeout( () => item.style.transitionDuration = '', TRANSITION_DURATION * 1000);
+
+      // повернуть
+      rotateElem(item);
+    });
   }
 }
 
-
-// конструктор элементов
-function CreatePuzzElem(width, height, xShift, yShift, row, column) {
-  this.width = width;
-  this.height = height;
-  this.xPicShift = xShift + pictureShifts.x;
-  this.yPicShift = yShift + pictureShifts.y;
-  this.row = row;
-  this.column = column;
-}
-
-
-// Случайно целое в заданном диапазоне
-function randomInteger(min, max) {
-  let rand = min + Math.random() * (max + 1 - min);
-  return Math.floor(rand);
 }

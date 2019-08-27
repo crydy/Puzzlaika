@@ -1,16 +1,18 @@
 'use strict'
 
 // Длительность анимации слияния (секунды)
-const TRANSITION_DURATION = .3;
+const MERGE_TRANSITION_DURATION = .3;
+// Длительность анимации поворота
+const ROTATE_TRANSITION_DURATION = .15;
 // Коэффициент расширения области чувствительности поиска смежных элементов (сдвиг от края)
 const SEARCH_SPREAD = 20;
 // Размах стыковки при совпадении (степень допустимого смещения в стороны от "оси стыковки")
 const MERGE_SPREAD = 20;
 
 // Элементы стартового меню
-const startMenu = document.querySelector('.start-menu'),
+const startMenu = document.querySelector('.start-menu__wrapper'),
       inputFile = startMenu.querySelector('.start-menu__inputfile'),
-      label = startMenu.querySelector('.start-menu__inputfile-label'),
+      inputFileLabel = startMenu.querySelector('.start-menu__inputfile-label'),
       startButton = startMenu.querySelector('.start-menu__start-button'),
       inputAmount = startMenu.querySelector('#pieces-amount'),
       startMenuCloser = startMenu.querySelector('.start-menu__closer');
@@ -21,26 +23,31 @@ const menu = document.querySelector('.menu'),
       menuPauseButton = menu.querySelector('.menu__pause-button'),
       menuRestart = menu.querySelector('.menu__restart'),
       menuReset = menu.querySelector('.menu__reset'),
-      menuToggle = menu.querySelector('.menu__toggle'),
-      toggle = menu.querySelector('.menu__toggle');
+      menuToggle = menu.querySelector('.menu__toggle');
 
 const overlay = document.querySelector('.overlay');
 
-// Путь к юзерской картинке
-let userImageURL;
+// Данные юзерской картинки (src, width, height);
+let userImageURLData;
 
 // Количество элементов
-let elementCount,
+let shortSideElementAmount,
     horizontalAmount,
     verticalAmount;
 
-// размер сторон элементов
+// hазмер сторон элементов
 let elemSideLength;
-// сдвиги изображения для центровки
+// Cдвиги изображения для центровки
 let pictureShifts;
 
-// id для подсчета времени игры
+// Подсчет времени игры
 let timekeeper;
+
+// Количество сцепленных элементов на момент последнего слияния
+let linkedElems = 1;
+
+// Состояние игры
+let gameState;
 
 // Запретить прокрутку
 document.body.style.overflow = "hidden";
@@ -53,21 +60,22 @@ menu.hidden = true;
 
 // Ожидать юзерский файл
 inputFile.addEventListener('change', inputFileChangeHandler);
-// Стартовать игру по клику на startButton
+// Стартовать игру
 startButton.addEventListener('click', startButtonClickHandler);
+// Закрывашка стартового меню
+startMenuCloser.addEventListener('click', startMenuCloserClickHandler);
+
 // Сворачивать и разворачивать угловое меню
 menuToggle.addEventListener('click', menuToggleClickHandler);
 // Выход на стартовое меню
-menuRestart.addEventListener('click', menuRestartClickHandler);
+menuRestart.addEventListener('click', menuNewGameClickHandler);
 // Раскидывать элементы заново
-menuReset.addEventListener('click', menuResetClickHandler);
-// Перетаскивание, повороты, сцепки деталей пазла
-document.addEventListener('mousedown', documentMousedownHandler);
-// Закрывашка стартового меню
-startMenuCloser.addEventListener('click', startMenuCloserClickHandler);
+menuReset.addEventListener('click', menuRestartClickHandler);
 // Кнопка паузы
 menuPauseButton.addEventListener('click', menuPauseButtonClickHandler);
 
+// Перетаскивание, повороты, сцепки деталей пазла
+document.addEventListener('mousedown', documentMousedownHandler);
 
 
 /* --------------------------------------------------- */
@@ -82,7 +90,7 @@ function randomInteger(min, max) {
 }
 
 
-/* --------------- Обработчики событий --------------- */
+/* --------------------- События --------------------- */
 
 // Получить ссылку на юзерский файл
 function inputFileChangeHandler() {
@@ -94,8 +102,8 @@ function inputFileChangeHandler() {
   // получить размер изображения
   getPictureData('outer', imageURL).then(
     (result) => {
-      label.textContent = 'Your image is downloaded';
-      userImageURL = result;
+      inputFileLabel.textContent = 'Your image is downloaded';
+      userImageURLData = result;
     }
   );
 }
@@ -104,36 +112,46 @@ function inputFileChangeHandler() {
 function startButtonClickHandler() {
 
   // удалить элементы раскладки предыдущей игры и сбросить тайминг
-  if (document.querySelector('.piece')) {
-    document.querySelectorAll('.piece').forEach(item => item.remove());
-    getTimeGame();
-    overlay.hidden = true;
-    menuToggleClickHandler('no-trans');
-  }
+  clearField();
+
+  gameState = 'game';
 
   // Отобразить угловое меню
   menu.hidden = false;
-  // Спрятать стартовое меню
-  startMenu.hidden = true;
+  // Спрятать стартовое меню ('hidden' не срабатывает для flexbox)
+  startMenu.style.display = 'none';
   // количество элементов по короткой стороне
-  elementCount = +inputAmount.value;
+  shortSideElementAmount = +inputAmount.value;
 
   // Раскидать пазл
-  if (!userImageURL) {
+  if (!userImageURLData) {
     getPictureData('inner').then(layOutElements);
   } else {
-    layOutElements(userImageURL);
+    layOutElements(userImageURLData);
   };
 
   // Запуск минутомера
   startTimeGame();
 }
 
-// Свернуть и развернуть меню
+// Закрывашка стартового меню
+function startMenuCloserClickHandler() {
+
+  // Отобразить угловое меню
+  menu.hidden = false;
+  // Спрятать стартовое меню
+  startMenu.style.display = 'none'; // 'hidden' не срабатывает с flexbox
+  // Убрать оверлей
+  overlay.hidden = true;
+  // Продолжить тайминг
+  if (gameState !== 'finished') startTimeGame();
+}
+
+// Свернуть и развернуть угловое меню
 function menuToggleClickHandler() {
 
   // расстояние до верха браузера
-  let menuInnerSpread = toggle.closest('.menu__item').offsetTop - menu.offsetTop;
+  let menuInnerSpread = menuToggle.closest('.menu__item').offsetTop - menu.offsetTop;
 
   // скрыть без анимации
   if (arguments[0] === 'no-trans') {
@@ -146,12 +164,81 @@ function menuToggleClickHandler() {
   if(!menu.classList.contains('menu--closed')) {
     menu.style.top = -menuInnerSpread + 'px';
     menu.classList.add('menu--closed');
-    toggle.textContent = 'menu';
+    menuToggle.textContent = 'menu';
   } else {
     menu.classList.remove('menu--closed');
     menu.style.top = 0;
-    toggle.textContent = 'hide';
+    menuToggle.textContent = 'hide';
   };
+}
+
+// Новая игра
+function menuNewGameClickHandler() {
+
+  // Показать стартовое меню и кнопку закрытия
+  startMenuCloser.hidden = false;
+  startMenu.style.display = ''; // 'hidden' не срабатывает для flexbox
+  // Заблокировать игровое поле
+  overlay.hidden = false;
+
+  // Убрать описательный текст
+  let info = document.querySelector('.start-menu__info');
+  if (info) info.remove();
+
+  // Тайминг на паузу
+  pauseTimeGame();
+}
+
+// Рестарт (перераскладка с тем-же изображением)
+function menuRestartClickHandler() {
+
+  pauseTimeGame();
+  overlay.hidden = false;
+
+  // Создать диалоговое окно из шаблона
+  let tmpl = document.querySelector('#popup-template').content.cloneNode(true),
+      popupWrapper = tmpl.querySelector('.popup__wrapper'),
+      popup = tmpl.querySelector('.popup');
+
+  // Настроить
+  tmpl.querySelector('.popup__title').textContent = 'Restart';
+  tmpl.querySelector('.popup__text').textContent = `Restart game with the same picture?`;
+  tmpl.querySelector('.popup__button--ok').textContent = 'Restart';
+  tmpl.querySelector('.popup__button--cancel').textContent = 'Cancel';
+
+  // Отобразить окно
+  document.body.append(tmpl);
+
+  // Обработка юзерского выбора
+  popup.addEventListener('click', popupClickHandler);
+
+  function popupClickHandler(event) {
+    let target = event.target;
+    console.log(target);
+
+    // вернуться к игре
+    if ( target.classList.contains('popup__button') || target.classList.contains('popup__closer') ) {
+
+      // закрыть окно
+      popup.removeEventListener('click', popupClickHandler);
+      popupWrapper.remove();
+      overlay.hidden = true;
+      if (gameState !== 'finished') startTimeGame();
+
+      // новая раскладка
+      if ( target.classList.contains('popup__button--ok') ) {
+
+        // свернуть меню
+        menuToggleClickHandler('no-trans');
+        // удалить элементы
+        document.querySelectorAll('.piece').forEach(item => item.remove());
+        // прервать таймер
+        getTimeGame();
+        // раскидать заново
+        startButtonClickHandler();
+      }
+    }
+  }
 }
 
 // Кнопка паузы
@@ -160,9 +247,8 @@ function menuPauseButtonClickHandler() {
   overlay.hidden = false;
 
   // Создать диалоговое окно из шаблона
-  let tmpl = document.querySelector('#popup-template').content.cloneNode(true);
-
-  let popupWrapper = tmpl.querySelector('.popup__wrapper'),
+  let tmpl = document.querySelector('#popup-template').content.cloneNode(true),
+      popupWrapper = tmpl.querySelector('.popup__wrapper'),
       popup = tmpl.querySelector('.popup');
 
   // Настроить
@@ -188,58 +274,15 @@ function menuPauseButtonClickHandler() {
       popup.removeEventListener('click', popupClickHandler);
       popupWrapper.remove();
       overlay.hidden = true;
-      startTimeGame();
+      if (gameState !== 'finished') startTimeGame();
     }
-  } 
+  }
 }
 
-// Отобразить стартовое меню по вызову
-function menuRestartClickHandler() {
-
-    // Показать стартовое меню и кнопку закрытия
-    startMenuCloser.hidden = false;
-    startMenu.hidden = false;
-    // Заблокировать игровое поле
-    overlay.hidden = false;
-
-    // Убрать описательный текст
-    let info = document.querySelector('.start-menu__info');
-    if (info) info.remove();
-
-    // Тайминг на паузу
-    pauseTimeGame();
-}
-
-// Закрывашка стартового меню
-function startMenuCloserClickHandler() {
-
-  // Отобразить угловое меню
-  menu.hidden = false;
-  // Спрятать стартовое меню
-  startMenu.hidden = true;
-  // Убрать оверлей
-  overlay.hidden = true;
-  // Продолжить тайминг
-  startTimeGame();
-}
-
-// Перераскладка деталей
-function menuResetClickHandler() {
-
-  // удалить элементы
-  document.querySelectorAll('.piece').forEach(item => item.remove());
-
-  // прервать таймер
-  getTimeGame();
-
-  // раскидать заново
-  startButtonClickHandler();
-}
-
-// Перетаскивание деталей
+// Перетаскивание элементов и выполнение сцепки с подходящими
 function documentMousedownHandler(event) {
 
-  // обработать клик левой клавишей по детали пазла
+  // только левая клавиша на детали пазла
   if (event.target.classList.contains('piece') && event.which == 1) {
 
     // двигаемый элемент
@@ -276,11 +319,9 @@ function documentMousedownHandler(event) {
     activeElem.addEventListener('mousedown', draggableElemRightClickHandler);
     document.addEventListener('contextmenu', preventContextMenu);
 
-    // При отпускании клавиши...
+    // При отпускании левой клавиши
     activeElem.onmouseup = function(event) {
-
-      // правая клавиша обрабатывает вращение элемента
-      if (event.which === 3) return;
+      if ( !(event.which === 1) ) return;
 
       // удалять прослушку движения и нажания
       document.removeEventListener('mousemove', mouseMoveHandler);
@@ -295,13 +336,22 @@ function documentMousedownHandler(event) {
       // Получить данные о искомых деталях, присоединить, если есть совпадения
       mergePieces( activeElem, getAllAdjacent(activeElem) );
 
+      // Сбросить прошлые подсчеты
+      linkedElems = 1;
+
       // Если активный элемент - часть группы, запустить поиск совпадений от каждого элемента группы
       if (activeElem.id) {
         Array.from(document.querySelectorAll('.piece'))
           .filter((item) => item.id === activeElem.id && item !== activeElem)
           .forEach(function(item) {
+            // подсчитывать сцепляемые
+            linkedElems++;
+            // выполнять сцепку
             mergePieces( item, getAllAdjacent(item) );
           });
+
+        // Закончить игру при сцепке всех деталей
+        if (linkedElems === horizontalAmount * verticalAmount && activeElem.deg === 0 && gameState !== 'finished') finishGame();
       }
     };
 
@@ -342,7 +392,7 @@ function documentMousedownHandler(event) {
   }
 }
 
-// поворот элемента или группы связанных элементов
+// Поворот элемента или группы связанных элементов
 function draggableElemRightClickHandler(event) {
 
   const elem = event.target;
@@ -362,14 +412,14 @@ function draggableElemRightClickHandler(event) {
       let relativeShifts = getRelativeShifts(elem, item);
 
       // анимировать
-      item.style.transitionDuration = TRANSITION_DURATION + 's';
+      item.style.transitionDuration = MERGE_TRANSITION_DURATION + 's';
 
       // новое положение
       item.style.left = elemCoords.left - relativeShifts.x + 'px';
       item.style.top = elemCoords.top - relativeShifts.y + 'px';
 
       // снять анимацию
-      setTimeout( () => item.style.transitionDuration = '', TRANSITION_DURATION * 1000);
+      setTimeout( () => item.style.transitionDuration = '', MERGE_TRANSITION_DURATION * 1000);
 
       // повернуть
       rotateElem(item);
@@ -553,7 +603,7 @@ function createElementsFragment(data) {
   }
 }
 
-// Разложить пазл
+// Разложить пазл на document
 function layOutElements(image) {
 
   // размеры вьюпорта
@@ -602,9 +652,9 @@ function layOutElements(image) {
   // все детали - квадратные, по длинной стороне остаток картинки урезается
   if (image.width < image.height) { // для вертикальной картинки
 
-    horizontalAmount = elementCount;
+    horizontalAmount = shortSideElementAmount;
     // размер куска
-    elemSideLength = image.width / elementCount;
+    elemSideLength = image.width / shortSideElementAmount;
     // количество вмещаемых элементов по высоте
     verticalAmount = Math.trunc(image.height / elemSideLength);
     // Требуемая высота
@@ -621,9 +671,9 @@ function layOutElements(image) {
 
   } else { // для горизонтальной картинки
 
-    verticalAmount = elementCount;
+    verticalAmount = shortSideElementAmount;
     // размер куска
-    elemSideLength = image.height / elementCount;
+    elemSideLength = image.height / shortSideElementAmount;
     // количество вмещаемых элементов по ширине
     horizontalAmount = Math.trunc(image.width / elemSideLength);
     // Требуемая ширина
@@ -662,11 +712,10 @@ function layOutElements(image) {
 /* ----------------- Игровой процесс ----------------- */
 
 // Поворот элемента
-// (анимация вдвое короче анимации происоединения)
 function rotateElem(elem) {
 
   // анимировать поворот
-  elem.style.transitionDuration = TRANSITION_DURATION / 2 + 's';
+  elem.style.transitionDuration = ROTATE_TRANSITION_DURATION + 's';
 
   // запомнить угол, повернуть
   elem.deg = (elem.deg) ? elem.deg + 90 : 90;
@@ -683,7 +732,7 @@ function rotateElem(elem) {
       elem.deg = 0;
     };
 
-  }, TRANSITION_DURATION * 1000 / 2);
+  }, ROTATE_TRANSITION_DURATION * 1000);
 }
 
 // получить смещения позиции целевого элемента
@@ -737,12 +786,12 @@ function getAllAdjacent(activeElem) {
     document.elementFromPoint(x, coord.bottom)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
     return activeElem.deg === item.deg &&
-          ((activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 0) ||
+           ((activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 0) ||
             (activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 90) ||
             (activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 180) ||
             (activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 270)) &&
-          Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
-          Math.abs(item.getBoundingClientRect().right - coord.left) <= MERGE_SPREAD
+           Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
+           Math.abs(item.getBoundingClientRect().right - coord.left) <= MERGE_SPREAD
   });
   if (targetElem) targetElems.push(targetElem);
 
@@ -755,12 +804,12 @@ function getAllAdjacent(activeElem) {
     document.elementFromPoint(x, coord.bottom)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
     return activeElem.deg === item.deg &&
-          ((activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 0) ||
+           ((activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 0) ||
             (activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 90) ||
             (activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 180) ||
             (activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 270)) &&
-          Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
-          Math.abs(item.getBoundingClientRect().left - coord.right) <= MERGE_SPREAD
+           Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
+           Math.abs(item.getBoundingClientRect().left - coord.right) <= MERGE_SPREAD
   });
   if (targetElem) targetElems.push(targetElem);
 
@@ -773,12 +822,12 @@ function getAllAdjacent(activeElem) {
     document.elementFromPoint(coord.right, y)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
     return activeElem.deg === item.deg &&
-            ((activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 0) ||
+           ((activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 0) ||
             (activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 90) ||
             (activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 180) ||
             (activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 270)) &&
-          Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
-          Math.abs(item.getBoundingClientRect().bottom - coord.top) <= MERGE_SPREAD
+           Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
+           Math.abs(item.getBoundingClientRect().bottom - coord.top) <= MERGE_SPREAD
   });
   if (targetElem) targetElems.push(targetElem);
 
@@ -791,12 +840,12 @@ function getAllAdjacent(activeElem) {
     document.elementFromPoint(coord.right, y)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
     return activeElem.deg === item.deg &&
-            ((activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 0) ||
+           ((activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 0) ||
             (activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 90) ||
             (activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 180) ||
             (activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 270)) &&
-          Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
-          Math.abs(item.getBoundingClientRect().top - coord.bottom) <= MERGE_SPREAD
+           Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
+           Math.abs(item.getBoundingClientRect().top - coord.bottom) <= MERGE_SPREAD
   });
   if (targetElem) targetElems.push(targetElem);
 
@@ -813,7 +862,7 @@ function moveToActive(activeElem, attachableElem) {
   attachableElem.style.zIndex = 1000;
   attachableElem.style.left = initCoord.left + 'px';
   attachableElem.style.top = initCoord.top + 'px';
-  attachableElem.style.transitionDuration = TRANSITION_DURATION + 's';
+  attachableElem.style.transitionDuration = MERGE_TRANSITION_DURATION + 's';
   document.body.append(attachableElem);
 
   // сдвинуть в соответствие с дОлжной позицией относительно активного
@@ -822,7 +871,7 @@ function moveToActive(activeElem, attachableElem) {
   attachableElem.style.top = activeElem.getBoundingClientRect().top - relativeShifts.y + 'px';
 
   // сбросить анимацию
-  setTimeout( () => attachableElem.style.transitionDuration = '', TRANSITION_DURATION * 1000);
+  setTimeout( () => attachableElem.style.transitionDuration = '', MERGE_TRANSITION_DURATION * 1000);
 }
 
 // Присоединение группы элементов (рабочий элемент, массив элементов для присоединения).
@@ -852,6 +901,66 @@ function mergePieces(activeElem, adjElemArray) {
         }
       }
     }
+}
+
+// Очистить поле, сброчить тайминг
+function clearField() {
+
+  if (document.querySelector('.piece')) {
+    document.querySelectorAll('.piece').forEach(item => item.remove());
+    getTimeGame();
+    overlay.hidden = true;
+    menuToggleClickHandler('no-trans');
+  }
+}
+
+// Закончить игру
+function finishGame() {
+
+  // дождаться окончания анимации 
+  setTimeout(() => {
+
+    overlay.hidden = false;
+    gameState = 'finished';
+
+    // Создать диалоговое окно из шаблона
+    let tmpl = document.querySelector('#popup-template').content.cloneNode(true),
+        popupWrapper = tmpl.querySelector('.popup__wrapper'),
+        popup = tmpl.querySelector('.popup');
+
+    // Настроить
+    popup.style.paddingLeft = '40px';
+    popup.style.paddingRight = '40px';
+
+    tmpl.querySelector('.popup__button--cancel').remove();
+
+    tmpl.querySelector('.popup__title').textContent = 'Congratulations!';
+    tmpl.querySelector('.popup__text').textContent = `Your time in the game: ${getTimeGame()}`;
+    tmpl.querySelector('.popup__button--ok').textContent = 'Start menu';
+
+    // Отобразить окно
+    document.body.append(tmpl);
+
+    // Закрывашка окна
+    popup.addEventListener('click', popupClickHandler);
+
+    function popupClickHandler(event) {
+      let target = event.target;
+      console.log(target);
+
+      if ( target.classList.contains('popup__button--ok') ) {
+        popup.removeEventListener('click', popupClickHandler);
+        popupWrapper.remove();
+        // Отобразить стартовое окно
+        menuNewGameClickHandler();
+      } else if ( target.classList.contains('popup__closer') ) {
+        popup.removeEventListener('click', popupClickHandler);
+        popupWrapper.remove();
+        overlay.hidden = true;
+      }
+    }
+
+  }, MERGE_TRANSITION_DURATION * 1000);
 }
 
 
@@ -898,7 +1007,7 @@ function pauseTimeGame() {
   timekeeper = 'paused';
 }
 
-// остановить тайминг, получить время игры
+// Остановить тайминг, получить время игры
 function getTimeGame() {
   clearInterval(timekeeper);
   timekeeper = null;

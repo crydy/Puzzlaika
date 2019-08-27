@@ -30,7 +30,6 @@ body {
   height: 100vh;
 }
 
-
 /* Кнопки */
 .button {
   display: inline-block;
@@ -48,9 +47,11 @@ body {
   transition-duration: var(--transition-duration);
   transition-property: text-shadow;
 }
+
 .button:focus {
   outline: none;
 }
+
 .button:hover {
   background-color: var(--theme-color-1__hover);
   text-shadow: 1px 1px 2px black, 1px 1px 8px black;
@@ -69,13 +70,16 @@ body {
   padding: 0;
   cursor: pointer;
 }
+
 .closer:focus {
   outline: none;
 }
+
 .closer:hover {
   box-shadow: 0 0 1px 1px var(--theme-color-1__hover);
   /* background-color: var(--theme-color-1__hover); */
 }
+
 .closer::before,
 .closer::after {
   content: '';
@@ -86,9 +90,11 @@ body {
   height: 2px;
   background-color: var(--font-color);
 }
+
 .closer::before {
   transform: rotate(45deg);
 }
+
 .closer::after {
   transform: rotate(135deg);
 }
@@ -105,12 +111,18 @@ body {
 
 
 /* Стартовое меню */
-.start-menu {
-  z-index: 10002;
+.start-menu__wrapper {
+  width: 100%;
+  height: 100vh;
+  display: flex;
   position: fixed;
+  z-index: 10002;
+}
+
+.start-menu {
+  position: relative;
   width: 500px;
-  margin-left: calc(50% - 250px);
-  margin-top: 30vh;
+  margin: auto;
   padding: var(--base-padding);
   background-color: var(--theme-color-1);
   color: var(--font-color);
@@ -154,9 +166,11 @@ body {
   transition-duration: var(--transition-duration);
   transition-property: text-shadow;
 }
+
 .start-menu__start-button {
   padding: 5px;
 }
+
 .start-menu__loader:hover,
 .start-menu__start-button:hover {
   background-color: var(--theme-color-1__hover);
@@ -190,7 +204,6 @@ body {
 
 /* Угловое меню */
 .menu {
-  /* outline: 1px dotted red; */
   position: relative;
   top: 0;
   width: 140px;
@@ -294,15 +307,19 @@ body {
   padding: 0;
   cursor: pointer;
 }
+
 .menu__item:hover > .menu__pause-button {
   display: block;
 }
+
 .menu__pause-button:focus {
   outline: none;
 }
+
 .menu__pause-button:hover {
   box-shadow: 0 0 1px 1px var(--theme-color-1__hover);
 }
+
 .menu__pause-button::before,
 .menu__pause-button::after {
   content: '';
@@ -314,9 +331,11 @@ body {
   background-color: var(--font-color);
   box-shadow: 0 0 1px 1px var(--theme-color-1__hover);
 }
+
 .menu__pause-button::before {
   left: 10%;
 }
+
 .menu__pause-button::after {
   right: 10%;
 }
@@ -362,6 +381,7 @@ body {
 .popup__button {
   min-width: 100px;
 }
+
 .popup__button:not(:last-child) {
   margin-right: var(--base-padding);
 }

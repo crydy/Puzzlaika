@@ -8,24 +8,26 @@
 <body>
 
 <!-- Стартовое меню -->
-<div class="start-menu">
-  <h1 class="start-menu__title">Pazlaika</h1>
-  <p class="start-menu__info">Here is a game that allows you to create a puzzle from your own image. Download the image, select the number of parts, and enjoy assembling your image!</p>
-
-  <label class="start-menu__amount-input" for="pieces-amount">
-    The elements number on the short side of your picture:
-    <input type="number" name="pieces-amount" id="pieces-amount" value="4" max="15" min="2">
-  </label>
-
-  <div class="start-menu__buttons-wrapper">
-    <button class="start-menu__loader">
-      <input class="start-menu__inputfile" type="file" name="file" id="file" accept=".jpg, .jpeg, .png"/>
-      <label class="start-menu__inputfile-label" for="file">Download image for game</label>
-    </button>
-    <button class="start-menu__start-button" type="button">Start</button>
+<div class="start-menu__wrapper">
+  <div class="start-menu">
+    <h1 class="start-menu__title">Pazlaika</h1>
+    <p class="start-menu__info">Here is a game that allows you to create a puzzle from your own image. Download the image, select the number of parts, and enjoy assembling your image!</p>
+  
+    <label class="start-menu__amount-input" for="pieces-amount">
+      The elements number on the short side of your picture:
+      <input type="number" name="pieces-amount" id="pieces-amount" value="4" max="15" min="2">
+    </label>
+  
+    <div class="start-menu__buttons-wrapper">
+      <button class="start-menu__loader">
+        <input class="start-menu__inputfile" type="file" name="file" id="file" accept=".jpg, .jpeg, .png"/>
+        <label class="start-menu__inputfile-label" for="file">Download image for game</label>
+      </button>
+      <button class="start-menu__start-button" type="button">Start</button>
+    </div>
+  
+    <button class="start-menu__closer closer" type="button" hidden></button>
   </div>
-
-  <button class="start-menu__closer closer" type="button" hidden></button>
 </div>
 
 <!-- Оверлей -->
@@ -35,10 +37,10 @@
 <nav class="menu">
   <ul class="menu__list">
     <li class="menu__item">
-      <button class="menu__button menu__restart" type="button">restart</button>
+      <button class="menu__button menu__restart" type="button">new game</button>
     </li>
     <li class="menu__item">
-      <button class="menu__button menu__reset" type="button">reset</button>
+      <button class="menu__button menu__reset" type="button">restart</button>
     </li>
     <!-- <li class="menu__item">
       <button class="menu__button" type="button">bg-style</button>

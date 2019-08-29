@@ -8,6 +8,8 @@ const ROTATE_TRANSITION_DURATION = .15;
 const SEARCH_SPREAD = 20;
 // Размах стыковки при совпадении (степень допустимого смещения в стороны от "оси стыковки")
 const MERGE_SPREAD = 20;
+// Максимальное количество деталей по короткой стороне
+const MAX_SHORT_SIDE_ELEMENTS_AMOUNT = 12;
 
 // Элементы стартового меню
 const startMenu = document.querySelector('.start-menu__wrapper'),
@@ -49,6 +51,9 @@ let linkedElems = 1;
 // Состояние игры
 let gameState;
 
+// Поворачиваемые в определенный момент элементы
+let rotatingElems = new Set();
+
 // Запретить прокрутку
 document.body.style.overflow = "hidden";
 
@@ -57,6 +62,9 @@ menuToggleClickHandler('no-trans');
 menu.hidden = true;
 
 // ------------------- Слушать события ---------------------
+
+// Ограничение количества деталей
+inputAmount.addEventListener('input', inputAmountInputListener);
 
 // Ожидать юзерский файл
 inputFile.addEventListener('change', inputFileChangeHandler);
@@ -76,6 +84,7 @@ menuPauseButton.addEventListener('click', menuPauseButtonClickHandler);
 
 // Перетаскивание, повороты, сцепки деталей пазла
 document.addEventListener('mousedown', documentMousedownHandler);
+document.addEventListener('wheel', documentWheelHandler);
 
 
 /* --------------------------------------------------- */
@@ -85,19 +94,25 @@ document.addEventListener('mousedown', documentMousedownHandler);
 
 // Случайно целое в заданном диапазоне
 function randomInteger(min, max) {
-  let rand = min + Math.random() * (max + 1 - min);
-  return Math.floor(rand);
+  return Math.floor( min + Math.random() * (max + 1 - min) );
 }
 
 
 /* --------------------- События --------------------- */
 
+// Ограничить количество деталей
+function inputAmountInputListener() {
+  if (inputAmount.value >= MAX_SHORT_SIDE_ELEMENTS_AMOUNT) {
+    inputAmount.value = MAX_SHORT_SIDE_ELEMENTS_AMOUNT;
+  };
+}
+
 // Получить ссылку на юзерский файл
 function inputFileChangeHandler() {
   // получить загруженный файл
-  let file = inputFile.files[0];
+  const file = inputFile.files[0];
   // преобразовать в ссылку
-  let imageURL = URL.createObjectURL(file);
+  const imageURL = URL.createObjectURL(file);
 
   // получить размер изображения
   getPictureData('outer', imageURL).then(
@@ -151,17 +166,17 @@ function startMenuCloserClickHandler() {
 function menuToggleClickHandler() {
 
   // расстояние до верха браузера
-  let menuInnerSpread = menuToggle.closest('.menu__item').offsetTop - menu.offsetTop;
+  const menuInnerSpread = menuToggle.closest('.menu__item').offsetTop - menu.offsetTop;
 
-  // скрыть без анимации
+  // сворачивание без анимации без анимации
   if (arguments[0] === 'no-trans') {
-    let trDur = parseFloat(getComputedStyle(menu).transitionDuration);
+    const trDur = parseFloat( getComputedStyle(menu).transitionDuration );
     menu.style.transitionDuration = '0s';
-    setTimeout(() => {menu.style.transitionDuration = trDur + 's'}, trDur + 's');
+    setTimeout(() => { menu.style.transitionDuration = trDur + 's' }, trDur + 's');
   }
   
   // открывать-закрывать по клику
-  if(!menu.classList.contains('menu--closed')) {
+  if( !menu.classList.contains('menu--closed') ) {
     menu.style.top = -menuInnerSpread + 'px';
     menu.classList.add('menu--closed');
     menuToggle.textContent = 'menu';
@@ -196,9 +211,9 @@ function menuRestartClickHandler() {
   overlay.hidden = false;
 
   // Создать диалоговое окно из шаблона
-  let tmpl = document.querySelector('#popup-template').content.cloneNode(true),
-      popupWrapper = tmpl.querySelector('.popup__wrapper'),
-      popup = tmpl.querySelector('.popup');
+  const tmpl = document.querySelector('#popup-template').content.cloneNode(true),
+        popupWrapper = tmpl.querySelector('.popup__wrapper'),
+        popup = tmpl.querySelector('.popup');
 
   // Настроить
   tmpl.querySelector('.popup__title').textContent = 'Restart';
@@ -213,8 +228,7 @@ function menuRestartClickHandler() {
   popup.addEventListener('click', popupClickHandler);
 
   function popupClickHandler(event) {
-    let target = event.target;
-    console.log(target);
+    const target = event.target;
 
     // вернуться к игре
     if ( target.classList.contains('popup__button') || target.classList.contains('popup__closer') ) {
@@ -243,13 +257,14 @@ function menuRestartClickHandler() {
 
 // Кнопка паузы
 function menuPauseButtonClickHandler() {
+
   pauseTimeGame();
   overlay.hidden = false;
 
   // Создать диалоговое окно из шаблона
-  let tmpl = document.querySelector('#popup-template').content.cloneNode(true),
-      popupWrapper = tmpl.querySelector('.popup__wrapper'),
-      popup = tmpl.querySelector('.popup');
+  const tmpl = document.querySelector('#popup-template').content.cloneNode(true),
+        popupWrapper = tmpl.querySelector('.popup__wrapper'),
+        popup = tmpl.querySelector('.popup');
 
   // Настроить
   tmpl.querySelector('.popup__button--cancel').remove();
@@ -266,7 +281,7 @@ function menuPauseButtonClickHandler() {
 
   // Закрвашка окна
   function popupClickHandler(event) {
-    let target = event.target;
+    const target = event.target;
     console.log(target);
 
     // ... по любой из двух кнопок
@@ -282,14 +297,14 @@ function menuPauseButtonClickHandler() {
 // Перетаскивание элементов и выполнение сцепки с подходящими
 function documentMousedownHandler(event) {
 
-  // только левая клавиша на детали пазла
+  // только для клика левой клавишей по детали пазла
   if (event.target.classList.contains('piece') && event.which == 1) {
 
     // двигаемый элемент
-    let activeElem = event.target;
+    const activeElem = event.target;
     // смещения от краев элемента до места клика
-    let shiftX = event.clientX - activeElem.getBoundingClientRect().left;
-    let shiftY = event.clientY - activeElem.getBoundingClientRect().top;
+    const shiftX = event.clientX - activeElem.getBoundingClientRect().left;
+    const shiftY = event.clientY - activeElem.getBoundingClientRect().top;
 
     // отменить дефолтную обработку перетаскивания
     activeElem.ondragstart = function() {
@@ -351,8 +366,10 @@ function documentMousedownHandler(event) {
           });
 
         // Закончить игру при сцепке всех деталей
-        if (linkedElems === horizontalAmount * verticalAmount && activeElem.deg === 0 && gameState !== 'finished') finishGame();
-      }
+        if (linkedElems === horizontalAmount * verticalAmount &&
+            activeElem.deg === 0 &&
+            gameState !== 'finished') finishGame();
+      };
     };
 
     // двигать элемент относительно краев браузера
@@ -392,41 +409,52 @@ function documentMousedownHandler(event) {
   }
 }
 
-// Поворот элемента или группы связанных элементов
-function draggableElemRightClickHandler(event) {
-
+// Поворот элемента или группы связанных элементов по клику
+function draggableElemRightClickHandler(event, direction) {
   const elem = event.target;
 
   // повернуть элемент
-  rotateElem(elem);
+  rotateElem(elem, direction);
+  
+  // повернуть все связанные элементы сразу после активного
+  setTimeout(() => {
 
-  // если есть связанные - повернуть все
-  if (elem.id) {
-    let elemCoords = elem.getBoundingClientRect();
+    if (elem.id) {
+      const elemCoords = elem.getBoundingClientRect();
 
-    Array.from(document.querySelectorAll('.piece'))
-    .filter((item) => item.id === elem.id && item !== elem)
-    .forEach(function(item) {
+      Array.from(document.querySelectorAll('.piece'))
+        .filter((item) => item.id === elem.id && item !== elem)
+        .forEach(function(item) {
 
-      // получить относительные сдвиги
-      let relativeShifts = getRelativeShifts(elem, item);
+          // получить относительные сдвиги
+          const relativeShifts = getRelativeShifts(elem, item);
 
-      // анимировать
-      item.style.transitionDuration = MERGE_TRANSITION_DURATION + 's';
+          // анимировать
+          item.style.transitionDuration = ROTATE_TRANSITION_DURATION + 's';
 
-      // новое положение
-      item.style.left = elemCoords.left - relativeShifts.x + 'px';
-      item.style.top = elemCoords.top - relativeShifts.y + 'px';
+          // повернуть
+          rotateElem(item, direction);
 
-      // снять анимацию
-      setTimeout( () => item.style.transitionDuration = '', MERGE_TRANSITION_DURATION * 1000);
+          // новое положение
+          item.style.left = elemCoords.left - relativeShifts.x + 'px';
+          item.style.top = elemCoords.top - relativeShifts.y + 'px';
 
-      // повернуть
-      rotateElem(item);
-    });
-  }
+          // снять анимацию
+          setTimeout( () => item.style.transitionDuration = '', ROTATE_TRANSITION_DURATION * 1000);
+        });
+    }
+  }, ROTATE_TRANSITION_DURATION * 1000);
 }
 
+// Поворот элемента или группы связанных элементов колесом мыши
+function documentWheelHandler(event) {
+  if (event.target.classList.contains('piece') && event.deltaY > 0) {
+    draggableElemRightClickHandler(event);
+  };
+  if (event.target.classList.contains('piece') && event.deltaY < 0) {
+    draggableElemRightClickHandler(event, 'reverse');
+  };
+}
 
 /* ----------------- Создание пазла ------------------ */
 
@@ -434,7 +462,7 @@ function draggableElemRightClickHandler(event) {
 // (объект: ссылка на изображение, ширина, высота)
 function getPictureData(method, source) {
 
-  let image = document.createElement('img');
+  const image = document.createElement('img');
 
   switch(method) {
 
@@ -460,7 +488,7 @@ function getPictureData(method, source) {
 function createElementsFragment(data) {
 
   // Фрагмент для накопления
-  let fragment = document.createDocumentFragment();
+  const fragment = document.createDocumentFragment();
 
   // хранение сдвигов
   let xShift = 0;
@@ -525,15 +553,16 @@ function createElementsFragment(data) {
     case 'random':
 
       // накопить массив возможных позиций элементов
-      let xShiftPosition = 0;
-      let yShiftPosition = 0;
-      let positions = [];
+      const positions = [];
+
+      let xShiftPosition = 0,
+          yShiftPosition = 0;
 
       for (let i = 1; i <= data.elemsAmount; i++) {
         
         positions.push(
           { left: xShiftPosition, top: yShiftPosition }
-        )
+        );
 
         // смена позиции
         if ( !Number.isInteger( (i) / data.horizontalAmount ) ) { // если деталь должна остаться в том-же ряду
@@ -545,13 +574,13 @@ function createElementsFragment(data) {
           yShiftPosition += data.elemSideLength; // следующая строка
           xShiftPosition = 0; // ... и ряд с начала
         };
-      }
+      };
 
       // создать элементы, добавить во фрагмент
       for (let i = 1; i <= data.elemsAmount; i++) {
 
         // создать элемент с классами
-        let piece = document.createElement('div');
+        const piece = document.createElement('div');
         piece.className = `piece piece-${i} row-${row} column-${column}`;
 
         // мета
@@ -564,9 +593,9 @@ function createElementsFragment(data) {
         piece.style.height = data.elemSideLength + 'px';
 
         // рандомоное целое в пределах размера массива
-        let random = randomInteger(0, positions.length - 1);
+        const random = randomInteger(0, positions.length - 1);
         // позиция по заданному значению
-        let randomPosition = positions[ random ];
+        const randomPosition = positions[ random ];
         
         // произвольная позиция элемента
         piece.style.left = (data.clientSize.width - data.image.width) / 2 + randomPosition.left + 'px';
@@ -580,7 +609,7 @@ function createElementsFragment(data) {
         piece.style.backgroundPosition = `${-xShift - data.pictureShifts.x}px ${-yShift - data.pictureShifts.y}px`;
 
         // произвольный угол поворота
-        let randomDeg = randomInteger(0, 3) * 90;
+        const randomDeg = randomInteger(0, 3) * 90;
         piece.deg = randomDeg;
         piece.style.transform = `rotate(${randomDeg}deg)`;
 
@@ -600,14 +629,14 @@ function createElementsFragment(data) {
       };
 
       return fragment;
-  }
+  };
 }
 
 // Разложить пазл на document
 function layOutElements(image) {
 
   // размеры вьюпорта
-  let clientSize = {
+  const clientSize = {
     width: document.documentElement.clientWidth,
     height: document.documentElement.clientHeight
   };
@@ -625,7 +654,7 @@ function layOutElements(image) {
     image.width = image.width * yRatio;
 
     // пропорционально скорректировать фон деталей
-    let piecesStyle = document.createElement('style');
+    const piecesStyle = document.createElement('style');
     piecesStyle.innerHTML = `.piece {background-size: auto ${image.height}px;}`;
     document.querySelector('head').append(piecesStyle);
   }
@@ -643,7 +672,7 @@ function layOutElements(image) {
     image.height = image.height * xRatio;
 
     // пропорционально скорректировать фон деталей
-    let piecesStyle = document.createElement('style');
+    const piecesStyle = document.createElement('style');
     piecesStyle.innerHTML = `.piece {background-size: ${image.width}px auto;}`;
     document.querySelector('head').append(piecesStyle);
   }
@@ -712,27 +741,48 @@ function layOutElements(image) {
 /* ----------------- Игровой процесс ----------------- */
 
 // Поворот элемента
-function rotateElem(elem) {
+function rotateElem(elem, direction) {
 
-  // анимировать поворот
-  elem.style.transitionDuration = ROTATE_TRANSITION_DURATION + 's';
+  // если элемент еще не в режиме поворота...
+  if ( !rotatingElems.has(elem) ) {
 
-  // запомнить угол, повернуть
-  elem.deg = (elem.deg) ? elem.deg + 90 : 90;
-  elem.style.transform = `rotate(${elem.deg}deg)`;
+    // добавить в набор поворачиваемых
+    rotatingElems.add(elem);
 
-  setTimeout(() => {
-    
-    // сброс анимации
-    elem.style.transitionDuration = '';
+    // анимировать поворот
+    elem.style.transitionDuration = ROTATE_TRANSITION_DURATION + 's';
+  
+    // повернуть и запомнить угол
+    switch (direction) {
+      case 'reverse':
 
-    // обнулить "transform" для предотвращения анимации в обратную сторону
-    if (elem.deg >= 360) {
-      elem.style.transform = '';
-      elem.deg = 0;
-    };
+        elem.deg -= 90;
+        elem.style.transform = `rotate(${elem.deg}deg)`;
+        break;
+  
+      default:
+        elem.deg = (elem.deg) ? elem.deg + 90 : 90;
+        elem.style.transform = `rotate(${elem.deg}deg)`;
 
-  }, ROTATE_TRANSITION_DURATION * 1000);
+    }
+  
+    // ... сразу после окончания анимации
+    setTimeout(() => {
+      
+      // сброс анимации
+      elem.style.transitionDuration = '';
+  
+      // при нулевом угле обнулить "transform"
+      if (elem.deg >= 360 || elem.deg <= -360) {
+        elem.style.transform = '';
+        elem.deg = 0;
+      };
+
+      // убрать элемент из списка анимируемых
+      rotatingElems.delete(elem);
+  
+    }, ROTATE_TRANSITION_DURATION * 1000);
+  };
 }
 
 // получить смещения позиции целевого элемента
@@ -742,23 +792,23 @@ function getRelativeShifts(activeElem, targetElem) {
   let shiftX, shiftY;
 
   // сдвиги при натуральной раскладке
-  let natureX = ((activeElem.column - targetElem.column) * elemSideLength);
-  let natureY = ((activeElem.row - targetElem.row) * elemSideLength);
+  const natureX = ((activeElem.column - targetElem.column) * elemSideLength),
+        natureY = ((activeElem.row - targetElem.row) * elemSideLength);
 
   // сдвиги при поворотах
-  if (!activeElem.deg || activeElem.deg === 360) {
+  if (!activeElem.deg || activeElem.deg === 360 || activeElem.deg === -360) {
     shiftX = natureX;
     shiftY = natureY;
-  } else if (activeElem.deg === 90) {
+  } else if (activeElem.deg === 90 || activeElem.deg === -270) {
     shiftX = -natureY;
     shiftY = natureX;
-  } else if (activeElem.deg === 180) {
+  } else if (activeElem.deg === 180 || activeElem.deg === -180) {
     shiftX = -natureX;
     shiftY = -natureY;
-  } else if (activeElem.deg === 270) {
+  } else if (activeElem.deg === 270 || activeElem.deg === -90) {
     shiftX = natureY;
     shiftY = -natureX;
-  }
+  };
 
   return { x: shiftX, y: shiftY };
 }
@@ -771,7 +821,7 @@ function getAllAdjacent(activeElem) {
   const targetElems = [];
 
   // координаты активного элемента
-  let coord = activeElem.getBoundingClientRect();
+  const coord = activeElem.getBoundingClientRect();
 
   // точки "прощупывания" смежных элементов
   let x, y;
@@ -785,11 +835,11 @@ function getAllAdjacent(activeElem) {
     document.elementFromPoint(x, y + (elemSideLength / 2)),
     document.elementFromPoint(x, coord.bottom)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
-    return activeElem.deg === item.deg &&
-           ((activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 0) ||
-            (activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 90) ||
-            (activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 180) ||
-            (activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 270)) &&
+    return ( activeElem.deg === item.deg || (Math.abs(activeElem.deg) + Math.abs(item.deg)) === 360) &&
+           ((activeElem.index === item.index + 1 && activeElem.row === item.row && (item.deg === 0 || item.deg === -360)) ||
+            (activeElem.row === item.row - 1 && activeElem.column === item.column && (item.deg === 90 || item.deg === -270)) ||
+            (activeElem.index === item.index - 1 && activeElem.row === item.row && (item.deg === 180 || item.deg === -180)) ||
+            (activeElem.row === item.row + 1 && activeElem.column === item.column && (item.deg === 270 || item.deg === -90))) &&
            Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
            Math.abs(item.getBoundingClientRect().right - coord.left) <= MERGE_SPREAD
   });
@@ -803,11 +853,11 @@ function getAllAdjacent(activeElem) {
     document.elementFromPoint(x, y + (elemSideLength / 2)),
     document.elementFromPoint(x, coord.bottom)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
-    return activeElem.deg === item.deg &&
-           ((activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 0) ||
-            (activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 90) ||
-            (activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 180) ||
-            (activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 270)) &&
+    return ( activeElem.deg === item.deg || (Math.abs(activeElem.deg) + Math.abs(item.deg)) === 360) &&
+           ((activeElem.index === item.index - 1 && activeElem.row === item.row && (item.deg === 0 || item.deg === -360)) ||
+            (activeElem.row === item.row + 1 && activeElem.column === item.column && (item.deg === 90 || item.deg === -270)) ||
+            (activeElem.index === item.index + 1 && activeElem.row === item.row && (item.deg === 180 || item.deg === -180)) ||
+            (activeElem.row === item.row - 1 && activeElem.column === item.column && (item.deg === 270 || item.deg === -90))) &&
            Math.abs(item.getBoundingClientRect().top - coord.top) <= MERGE_SPREAD &&
            Math.abs(item.getBoundingClientRect().left - coord.right) <= MERGE_SPREAD
   });
@@ -821,11 +871,11 @@ function getAllAdjacent(activeElem) {
     document.elementFromPoint(x  + (elemSideLength / 2), y),
     document.elementFromPoint(coord.right, y)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
-    return activeElem.deg === item.deg &&
-           ((activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 0) ||
-            (activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 90) ||
-            (activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 180) ||
-            (activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 270)) &&
+    return ( activeElem.deg === item.deg || (Math.abs(activeElem.deg) + Math.abs(item.deg)) === 360) &&
+           ((activeElem.row === item.row + 1 && activeElem.column === item.column && (item.deg === 0 || item.deg === -360)) ||
+            (activeElem.index === item.index + 1 && activeElem.row === item.row && (item.deg === 90 || item.deg === -270)) ||
+            (activeElem.row === item.row - 1 && activeElem.column === item.column && (item.deg === 180 || item.deg === -180)) ||
+            (activeElem.index === item.index - 1 && activeElem.row === item.row && (item.deg === 270 || item.deg === -90))) &&
            Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
            Math.abs(item.getBoundingClientRect().bottom - coord.top) <= MERGE_SPREAD
   });
@@ -839,11 +889,11 @@ function getAllAdjacent(activeElem) {
     document.elementFromPoint(x  + (elemSideLength / 2), y),
     document.elementFromPoint(coord.right, y)
   ].filter((item) => item && item.classList.contains('piece') && item !== activeElem).find( function(item) {
-    return activeElem.deg === item.deg &&
-           ((activeElem.row === item.row - 1 && activeElem.column === item.column && item.deg === 0) ||
-            (activeElem.index === item.index - 1 && activeElem.row === item.row && item.deg === 90) ||
-            (activeElem.row === item.row + 1 && activeElem.column === item.column && item.deg === 180) ||
-            (activeElem.index === item.index + 1 && activeElem.row === item.row && item.deg === 270)) &&
+    return ( activeElem.deg === item.deg || (Math.abs(activeElem.deg) + Math.abs(item.deg)) === 360) &&
+           ((activeElem.row === item.row - 1 && activeElem.column === item.column && (item.deg === 0 || item.deg === -360)) ||
+            (activeElem.index === item.index - 1 && activeElem.row === item.row && (item.deg === 90 || item.deg === -270)) ||
+            (activeElem.row === item.row + 1 && activeElem.column === item.column && (item.deg === 180 || item.deg === -180)) ||
+            (activeElem.index === item.index + 1 && activeElem.row === item.row && (item.deg === 270 || item.deg === -90))) &&
            Math.abs(item.getBoundingClientRect().left - coord.left) <= MERGE_SPREAD &&
            Math.abs(item.getBoundingClientRect().top - coord.bottom) <= MERGE_SPREAD
   });
@@ -857,7 +907,7 @@ function getAllAdjacent(activeElem) {
 function moveToActive(activeElem, attachableElem) {
 
   // выдернуть на уровень document в то-же место, установить плавную анимацию
-  let initCoord = attachableElem.getBoundingClientRect();
+  const initCoord = attachableElem.getBoundingClientRect();
   attachableElem.style.position = 'absolute';
   attachableElem.style.zIndex = 1000;
   attachableElem.style.left = initCoord.left + 'px';
@@ -866,7 +916,7 @@ function moveToActive(activeElem, attachableElem) {
   document.body.append(attachableElem);
 
   // сдвинуть в соответствие с дОлжной позицией относительно активного
-  let relativeShifts = getRelativeShifts(activeElem, attachableElem);
+  const relativeShifts = getRelativeShifts(activeElem, attachableElem);
   attachableElem.style.left = activeElem.getBoundingClientRect().left - relativeShifts.x + 'px';
   attachableElem.style.top = activeElem.getBoundingClientRect().top - relativeShifts.y + 'px';
 
@@ -881,26 +931,26 @@ function mergePieces(activeElem, adjElemArray) {
   // сгенерировать общий идентификатор для сцепляемых элементов
   if (!activeElem.id) activeElem.id = `f${(~~(Math.random()*1e8)).toString(16)}`;
 
-    // присоединить каждый из массива, либо группу элементов, частью которой является присоединяемый
-    for (let targetElem of adjElemArray) {
+  // присоединить каждый из массива, либо группу элементов, частью которой является присоединяемый
+  for (let targetElem of adjElemArray) {
 
-      // если оба элемента имеют разные id (еще не сцеплены меж собой)
-      if (targetElem.id !== activeElem.id) {
+    // если оба элемента имеют разные id (еще не сцеплены меж собой)
+    if (targetElem.id !== activeElem.id) {
 
-        // присоединить целевой элемент или группу элементов (сдвинуть, назначить id от активного)
-        if (!targetElem.id) {
-          moveToActive(activeElem, targetElem);
-          targetElem.id = activeElem.id;
-        } else {
-          Array.from(document.querySelectorAll('.piece'))
-            .filter((item) => targetElem.id && item.id === targetElem.id)
-            .forEach(function(item) {
-              moveToActive(activeElem, item);
-              item.id = activeElem.id;
-            });
-        }
+      // присоединить целевой элемент или группу элементов (сдвинуть, назначить id от активного)
+      if (!targetElem.id) {
+        moveToActive(activeElem, targetElem);
+        targetElem.id = activeElem.id;
+      } else {
+        Array.from(document.querySelectorAll('.piece'))
+          .filter((item) => targetElem.id && item.id === targetElem.id)
+          .forEach(function(item) {
+            moveToActive(activeElem, item);
+            item.id = activeElem.id;
+          });
       }
     }
+  }
 }
 
 // Очистить поле, сброчить тайминг
@@ -924,9 +974,9 @@ function finishGame() {
     gameState = 'finished';
 
     // Создать диалоговое окно из шаблона
-    let tmpl = document.querySelector('#popup-template').content.cloneNode(true),
-        popupWrapper = tmpl.querySelector('.popup__wrapper'),
-        popup = tmpl.querySelector('.popup');
+    const tmpl = document.querySelector('#popup-template').content.cloneNode(true),
+          popupWrapper = tmpl.querySelector('.popup__wrapper'),
+          popup = tmpl.querySelector('.popup');
 
     // Настроить
     popup.style.paddingLeft = '40px';
@@ -945,8 +995,7 @@ function finishGame() {
     popup.addEventListener('click', popupClickHandler);
 
     function popupClickHandler(event) {
-      let target = event.target;
-      console.log(target);
+      const target = event.target;
 
       if ( target.classList.contains('popup__button--ok') ) {
         popup.removeEventListener('click', popupClickHandler);
@@ -973,7 +1022,6 @@ function startTimeGame() {
 
   // если были на паузе
   if (timekeeper === 'paused') {
-    console.log('after pause');
 
     // получить количество миллисекунд в игре
     let ms = parseInt( menuTime.textContent.slice(3) * 1000 ) +
@@ -987,7 +1035,7 @@ function startTimeGame() {
   timekeeper = setInterval(() => {
 
     // разница между текущим и стартовым временем
-    let timeFromStart = Math.floor( (Date.now() - startTime) / 1000);
+    const timeFromStart = Math.floor( (Date.now() - startTime) / 1000);
 
     let s = timeFromStart % 60;
     let m = Math.floor(timeFromStart / 60);

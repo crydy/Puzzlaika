@@ -52,7 +52,7 @@ let linkedElems = 1;
 let gameState;
 
 // Поворачиваемые в определенный момент элементы
-let rotatingElems = new Set();
+let rotatingElems = new WeakSet();
 
 // Запретить прокрутку
 document.body.style.overflow = "hidden";
@@ -61,7 +61,10 @@ document.body.style.overflow = "hidden";
 menuToggleClickHandler('no-trans');
 menu.hidden = true;
 
-// ------------------- Слушать события ---------------------
+// Тестовый запуск
+// startButtonClickHandler();
+
+// ------------------- Прослушка событий ---------------------
 
 // Ограничение количества деталей
 inputAmount.addEventListener('input', inputAmountInputListener);
@@ -90,6 +93,7 @@ document.addEventListener('wheel', documentWheelHandler);
 /* --------------------------------------------------- */
 /* --------------------- ФУНКЦИИ --------------------- */
 /* --------------------------------------------------- */
+
 /* ---------------- Общего назначения ---------------- */
 
 // Случайно целое в заданном диапазоне
@@ -119,6 +123,9 @@ function inputFileChangeHandler() {
     (result) => {
       inputFileLabel.textContent = 'Your image is downloaded';
       userImageURLData = result;
+
+      // отобразить превью
+      console.log(inputFile.closest('.start-menu__loader'));
     }
   );
 }
@@ -334,48 +341,19 @@ function documentMousedownHandler(event) {
     activeElem.addEventListener('mousedown', draggableElemRightClickHandler);
     document.addEventListener('contextmenu', preventContextMenu);
 
-    // При отпускании левой клавиши
-    activeElem.onmouseup = function(event) {
-      if ( !(event.which === 1) ) return;
+    // Отпустить при отпускании левой клавиши, присоединить подходящие элементы
+    activeElem.addEventListener('mouseup', activeElemMouseupHandler);
 
-      // удалять прослушку движения и нажания
-      document.removeEventListener('mousemove', mouseMoveHandler);
-      activeElem.removeEventListener('mousedown', draggableElemRightClickHandler);
+    // Отпустить двигаемый элемент при покидании курсором вьюпорта
+    document.addEventListener('mouseout', documentMouseoutHandler);
 
-      // вернуть контекстное меню
-      document.removeEventListener('contextmenu', preventContextMenu);
 
-      // самоудаляться текущему обработчику события
-      activeElem.onmouseup = null;
-
-      // Получить данные о искомых деталях, присоединить, если есть совпадения
-      mergePieces( activeElem, getAllAdjacent(activeElem) );
-
-      // Сбросить прошлые подсчеты
-      linkedElems = 1;
-
-      // Если активный элемент - часть группы, запустить поиск совпадений от каждого элемента группы
-      if (activeElem.id) {
-        Array.from(document.querySelectorAll('.piece'))
-          .filter((item) => item.id === activeElem.id && item !== activeElem)
-          .forEach(function(item) {
-            // подсчитывать сцепляемые
-            linkedElems++;
-            // выполнять сцепку
-            mergePieces( item, getAllAdjacent(item) );
-          });
-
-        // Закончить игру при сцепке всех деталей
-        if (linkedElems === horizontalAmount * verticalAmount &&
-            activeElem.deg === 0 &&
-            gameState !== 'finished') finishGame();
-      };
-    };
+    // ------------ Обработка событий перетаскивания ------------
 
     // двигать элемент относительно краев браузера
-    function moveAt(activeElem, x, y) {
-      activeElem.style.left = x + 'px';
-      activeElem.style.top = y + 'px';
+    function moveAt(elem, x, y) {
+      elem.style.left = x + 'px';
+      elem.style.top = y + 'px';
     }
 
     // движение элемента или группы
@@ -405,6 +383,60 @@ function documentMousedownHandler(event) {
     // предотвращение вызова контекстного меню
     function preventContextMenu(event) {
       event.preventDefault();
+    }
+
+    // завершить перетаскивание, присоединить подходящие детали
+    function activeElemMouseupHandler(event) {
+      if ( event.which !== 1 ) return;
+
+      // удалять прослушку движения и нажания
+      document.removeEventListener('mousemove', mouseMoveHandler);
+      activeElem.removeEventListener('mousedown', draggableElemRightClickHandler);
+
+      // вернуть контекстное меню
+      document.removeEventListener('contextmenu', preventContextMenu);
+
+      // самоудаляться текущему обработчику события
+      activeElem.removeEventListener('mouseup', activeElemMouseupHandler);
+
+      // Получить данные о искомых деталях, присоединить, если есть совпадения
+      mergePieces( activeElem, getAllAdjacent(activeElem) );
+
+      // Сбросить прошлые подсчеты
+      linkedElems = 1;
+
+      // Если активный элемент - часть группы, запустить поиск совпадений от каждого элемента группы
+      if (activeElem.id) {
+        Array.from(document.querySelectorAll('.piece'))
+          .filter((item) => item.id === activeElem.id && item !== activeElem)
+          .forEach(function(item) {
+            // подсчитывать сцепляемые
+            linkedElems++;
+            // выполнять сцепку
+            mergePieces( item, getAllAdjacent(item) );
+          });
+
+        // Закончить игру при сцепке всех деталей
+        if (linkedElems === horizontalAmount * verticalAmount &&
+            activeElem.deg === 0 &&
+            gameState !== 'finished') finishGame();
+      };
+    }
+
+    // бросать элемент при покидании курсором вьюпорта
+    function documentMouseoutHandler(event) {
+
+      // обрабатывать только событие выхода за пределы вьюпорта
+      if (event.relatedTarget === document.documentElement) {
+
+        // удалять прослушку движения и нажания
+        document.removeEventListener('mousemove', mouseMoveHandler);
+        activeElem.removeEventListener('mousedown', draggableElemRightClickHandler);
+        // вернуть контекстное меню
+        document.removeEventListener('contextmenu', preventContextMenu);
+        // самоудалиться
+        document.removeEventListener('mouseout', documentMouseoutHandler);
+      }
     }
   }
 }
@@ -446,6 +478,7 @@ function draggableElemRightClickHandler(event, direction) {
   }, ROTATE_TRANSITION_DURATION * 1000);
 }
 
+
 // Поворот элемента или группы связанных элементов колесом мыши
 function documentWheelHandler(event) {
   if (event.target.classList.contains('piece') && event.deltaY > 0) {
@@ -455,6 +488,7 @@ function documentWheelHandler(event) {
     draggableElemRightClickHandler(event, 'reverse');
   };
 }
+
 
 /* ----------------- Создание пазла ------------------ */
 
@@ -953,7 +987,7 @@ function mergePieces(activeElem, adjElemArray) {
   }
 }
 
-// Очистить поле, сброчить тайминг
+// Очистить поле, сбросить тайминг
 function clearField() {
 
   if (document.querySelector('.piece')) {
@@ -985,7 +1019,7 @@ function finishGame() {
     tmpl.querySelector('.popup__button--cancel').remove();
 
     tmpl.querySelector('.popup__title').textContent = 'Congratulations!';
-    tmpl.querySelector('.popup__text').textContent = `Your time in the game: ${getTimeGame()}`;
+    tmpl.querySelector('.popup__text').textContent = `You put the puzzle of ${horizontalAmount * verticalAmount} parts together from ${getTimeGame()} minutes`;
     tmpl.querySelector('.popup__button--ok').textContent = 'Start menu';
 
     // Отобразить окно

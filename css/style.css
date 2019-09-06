@@ -209,6 +209,7 @@ body {
   width: 140px;
   z-index: 10000;
   transition-duration: var(--transition-duration);
+  user-select: none;
 }
 
 .menu__list {

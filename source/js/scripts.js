@@ -24,14 +24,19 @@ const startMenu = document.querySelector('.start-menu__wrapper'),
 
 // Элементы углового меню
 const menu = document.querySelector('.menu'),
+      menuNewGame = menu.querySelector('.menu__new-game'),
+      menuRestart = menu.querySelector('.menu__restart'),
+      menuBGChanger = menu.querySelector('.menu__bg-changer'),
       menuTime = menu.querySelector('.menu__time'),
       menuPauseButton = menu.querySelector('.menu__pause-button'),
-      menuRestart = menu.querySelector('.menu__restart'),
-      menuReset = menu.querySelector('.menu__reset'),
       menuToggle = menu.querySelector('.menu__toggle');
 
 const overlay = document.querySelector('.overlay'),
       previewShower = document.querySelector('.preview-shower');
+
+
+// Текущий фон
+let bgStyle = '01';
 
 // Данные юзерской картинки (src, width, height);
 let userImageURLData;
@@ -97,9 +102,11 @@ startMenuCloser.addEventListener('click', startMenuCloserClickHandler);
 // Сворачивать и разворачивать угловое меню
 menuToggle.addEventListener('click', menuToggleClickHandler);
 // Выход на стартовое меню
-menuRestart.addEventListener('click', menuNewGameClickHandler);
+menuNewGame.addEventListener('click', menuNewGameClickHandler);
 // Раскидывать элементы заново
-menuReset.addEventListener('click', menuRestartClickHandler);
+menuRestart.addEventListener('click', menuRestartClickHandler);
+// Переключение фона
+menuBGChanger.addEventListener('click', menuBGChangerClickHandler);
 // Кнопка паузы
 menuPauseButton.addEventListener('click', menuPauseButtonClickHandler);
 
@@ -170,7 +177,11 @@ function inputFileChangeHandler() {
 
 // Смена фона
 function bgSwitchClickHandler() {
-  document.body.style.backgroundImage = `url(../img/bg/${event.target.classList[1]}.jpg)`;
+  let bgNumber = event.target.classList[1];
+  if (bgNumber) {
+    bgStyle = bgNumber.slice(-2);
+    document.body.style.backgroundImage = `url(img/bg/${event.target.classList[1]}.jpg)`;
+  }
 }
 
 // Начать игру
@@ -370,6 +381,17 @@ function menuRestartClickHandler() {
       }
     }
   }
+}
+
+// Переключение фона в цикле
+function menuBGChangerClickHandler() {
+  if (parseInt(bgStyle) < +BG_FILES) {
+    bgStyle = (parseInt(bgStyle)) + 1;
+    document.body.style.backgroundImage = `url(img/bg/bg-${(bgStyle < 10) ? ('0' + bgStyle) : bgStyle}.jpg)`;
+  } else {
+    bgStyle = '01';
+    document.body.style.backgroundImage = `url(img/bg/bg-01.jpg)`;
+  };
 }
 
 // Кнопка паузы

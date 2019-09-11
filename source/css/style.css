@@ -15,7 +15,7 @@
   --empty-corner-size: calc( var(--menu-font-size) - 1px );
 }
 
-* {
+*, *::after, *::before {
   box-sizing: border-box;
 }
 

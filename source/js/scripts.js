@@ -41,7 +41,7 @@ let shortSideElementAmount,
     horizontalAmount,
     verticalAmount;
 
-// hазмер сторон элементов
+// Размер сторон элементов
 let elemSideLength;
 // Cдвиги изображения для центровки
 let pictureShifts;

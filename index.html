@@ -15,8 +15,13 @@
   
     <label class="start-menu__amount-input" for="pieces-amount">
       The elements number on the short side of your picture:
-      <input type="number" name="pieces-amount" id="pieces-amount" value="3" max="12" min="2">
+      <input type="number" name="pieces-amount" id="pieces-amount" value="5" max="12" min="2">
     </label>
+
+    <div class="start-menu__bg-change">
+      <p class="start-menu__bg-change-text">Background:</p>
+      <div class="start-menu__bg-change-switch"></div>
+    </div>
   
     <div class="start-menu__buttons-wrapper">
       <button class="start-menu__loader">
@@ -32,6 +37,9 @@
 
 <!-- Оверлей -->
 <div class="overlay" hidden></div>
+<!-- Превью -->
+<div class="preview-shower preview-shower--hidden"></div>
+<div class="preview-image-wrapper"></div>
 
 <!-- Меню пользователя -->
 <nav class="menu">

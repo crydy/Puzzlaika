@@ -10,6 +10,8 @@ const SEARCH_SPREAD = 20;
 const MERGE_SPREAD = 20;
 // Максимальное количество деталей по короткой стороне
 const MAX_SHORT_SIDE_ELEMENTS_AMOUNT = 12;
+// Количество фонов в папке img/bg
+const BG_FILES = 8;
 
 // Элементы стартового меню
 const startMenu = document.querySelector('.start-menu__wrapper'),
@@ -17,6 +19,7 @@ const startMenu = document.querySelector('.start-menu__wrapper'),
       inputFileLabel = startMenu.querySelector('.start-menu__inputfile-label'),
       startButton = startMenu.querySelector('.start-menu__start-button'),
       inputAmount = startMenu.querySelector('#pieces-amount'),
+      bgSwitch = startMenu.querySelector('.start-menu__bg-change-switch'),
       startMenuCloser = startMenu.querySelector('.start-menu__closer');
 
 // Элементы углового меню
@@ -27,7 +30,8 @@ const menu = document.querySelector('.menu'),
       menuReset = menu.querySelector('.menu__reset'),
       menuToggle = menu.querySelector('.menu__toggle');
 
-const overlay = document.querySelector('.overlay');
+const overlay = document.querySelector('.overlay'),
+      previewShower = document.querySelector('.preview-shower');
 
 // Данные юзерской картинки (src, width, height);
 let userImageURLData;
@@ -51,6 +55,9 @@ let linkedElems = 1;
 // Состояние игры
 let gameState;
 
+// Состояние отображения меню
+let showPreviewConstantly;
+
 // Поворачиваемые в определенный момент элементы
 let rotatingElems = new WeakSet();
 
@@ -61,16 +68,27 @@ document.body.style.overflow = "hidden";
 menuToggleClickHandler('no-trans');
 menu.hidden = true;
 
+// Установить фоны на выбор
+const bgs = [];
+for (let i = 1; i <= BG_FILES; i++) {
+  const bg = document.createElement('img');
+  bg.className = `start-menu__bg-change-img bg-${ (i < 10) ? ('0' + i) : i }`;
+  bg.style.backgroundImage = `url(img/bg/bg-${ (i < 10) ? ('0' + i) : i }.jpg)`;
+  bgs.push(bg);
+}
+bgSwitch.append(...bgs);
+
 // Тестовый запуск
 // startButtonClickHandler();
 
 // ------------------- Прослушка событий ---------------------
 
 // Ограничение количества деталей
-inputAmount.addEventListener('input', inputAmountInputListener);
-
+inputAmount.addEventListener('input', inputAmountInputHandler);
 // Ожидать юзерский файл
 inputFile.addEventListener('change', inputFileChangeHandler);
+// Смена фона
+bgSwitch.addEventListener('click', bgSwitchClickHandler);
 // Стартовать игру
 startButton.addEventListener('click', startButtonClickHandler);
 // Закрывашка стартового меню
@@ -84,6 +102,10 @@ menuRestart.addEventListener('click', menuNewGameClickHandler);
 menuReset.addEventListener('click', menuRestartClickHandler);
 // Кнопка паузы
 menuPauseButton.addEventListener('click', menuPauseButtonClickHandler);
+
+// Просмотр превью
+previewShower.addEventListener('mouseenter', previewShowerMouseenterHandler);
+previewShower.addEventListener('click', previewShowerClickHandler);
 
 // Перетаскивание, повороты, сцепки деталей пазла
 document.addEventListener('mousedown', documentMousedownHandler);
@@ -105,10 +127,12 @@ function randomInteger(min, max) {
 /* --------------------- События --------------------- */
 
 // Ограничить количество деталей
-function inputAmountInputListener() {
+function inputAmountInputHandler() {
   if (inputAmount.value >= MAX_SHORT_SIDE_ELEMENTS_AMOUNT) {
     inputAmount.value = MAX_SHORT_SIDE_ELEMENTS_AMOUNT;
-  };
+  } else if (inputAmount.value < 2) {
+    inputAmount.value = 2;
+  }
 }
 
 // Получить ссылку на юзерский файл
@@ -124,10 +148,29 @@ function inputFileChangeHandler() {
       inputFileLabel.textContent = 'Your image is downloaded';
       userImageURLData = result;
 
-      // отобразить превью
-      console.log(inputFile.closest('.start-menu__loader'));
+      // отобразить превью близ кнопки загрузки
+      if (document.querySelector('.small-preview')) {
+        document.querySelector('.small-preview').src = result.src;
+      } else {
+        const prew = document.createElement('img');
+        prew.src = result.src;
+        prew.classList.add('small-preview');
+        prew.style.display = 'block';
+        prew.style.height = inputFileLabel.offsetHeight + 'px';
+        prew.style.width = 'auto';
+        prew.style.position = 'absolute';
+        prew.style.left = inputFileLabel.offsetWidth + 15 + 'px';
+        prew.style.border = `1px solid ${getComputedStyle(inputFileLabel).borderColor}`;
+        // вставить после кнопки загрузки
+        inputFile.closest('.start-menu__loader').after(prew);
+      }
     }
   );
+}
+
+// Смена фона
+function bgSwitchClickHandler() {
+  document.body.style.backgroundImage = `url(../img/bg/${event.target.classList[1]}.jpg)`;
 }
 
 // Начать игру
@@ -136,10 +179,34 @@ function startButtonClickHandler() {
   // удалить элементы раскладки предыдущей игры и сбросить тайминг
   clearField();
 
+  // состояние - игра
   gameState = 'game';
 
-  // Отобразить угловое меню
+  // Отобразить угловое меню и превью
   menu.hidden = false;
+
+  // отобразить иконку показа превью
+  previewShower.classList.remove('preview-shower--hidden');
+
+  // создать элемент-превью если его нет, обновить источник изображения
+  if ( !document.querySelector('.preview-image') ) {
+
+    let preview = document.createElement('img');
+    preview.classList.add('preview-image');
+    preview.style.display = 'none';
+  
+    if (userImageURLData) {
+      preview.src = userImageURLData.src;
+    } else {
+      preview.src = 'img/image.jpg';
+    }
+
+    document.querySelector('.preview-image-wrapper').append(preview);
+
+  } else if (userImageURLData) {
+    document.querySelector('.preview-image').src = userImageURLData.src;
+  }
+
   // Спрятать стартовое меню ('hidden' не срабатывает для flexbox)
   startMenu.style.display = 'none';
   // количество элементов по короткой стороне
@@ -192,6 +259,49 @@ function menuToggleClickHandler() {
     menu.style.top = 0;
     menuToggle.textContent = 'hide';
   };
+}
+
+// Отображать и скрывать превью
+function previewShowerMouseenterHandler() {
+  
+  // удалить прослушку входа курсора, слушать выход
+  previewShower.removeEventListener('mouseenter', previewShowerMouseenterHandler);
+  previewShower.addEventListener('mouseout', previewShowerMouseoutHandler);
+
+  // скрыть иконку
+  previewShower.style.boxShadow = 'none';
+  // отобразить превью
+  document.querySelector('.preview-image').style.display = '';
+
+
+  // прослушка ухода курсора
+  function previewShowerMouseoutHandler() {
+
+    if (!showPreviewConstantly) {
+      // отобразить иконку
+      previewShower.style.boxShadow = '';
+      // скрыть изображение
+      document.querySelector('.preview-image').style.display = 'none';
+    }
+    
+    // удалить прослушку выхода курсора, слушать вход
+    previewShower.removeEventListener('mouseout', previewShowerMouseoutHandler);
+    previewShower.addEventListener('mouseenter', previewShowerMouseenterHandler);
+  }
+}
+
+// Фиксация отображения превью
+function previewShowerClickHandler() {
+
+  if (showPreviewConstantly) {
+    showPreviewConstantly = false;
+    document.querySelector('.preview-image').style.zIndex = '';
+    previewShower.classList.remove('preview-shower--const');
+  } else {
+    showPreviewConstantly = true;
+    document.querySelector('.preview-image').style.zIndex = '1';
+    previewShower.classList.add('preview-shower--const');
+  }
 }
 
 // Новая игра
@@ -477,7 +587,6 @@ function draggableElemRightClickHandler(event, direction) {
     }
   }, ROTATE_TRANSITION_DURATION * 1000);
 }
-
 
 // Поворот элемента или группы связанных элементов колесом мыши
 function documentWheelHandler(event) {

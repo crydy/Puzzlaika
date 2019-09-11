@@ -19,13 +19,18 @@
   box-sizing: border-box;
 }
 
+img {
+  width: 100%;
+  height: auto;
+}
+
 html {
   color: var(--font-color);
 }
 
 body {
   margin: 0;
-  background: url(../img/bg/carbon-bg.jpg);
+  background-image: url(../img/bg/bg-01.jpg);
   background-color: rgb(53, 44, 44);
   height: 100vh;
 }
@@ -106,6 +111,7 @@ body {
   /* border: 1px solid white; */
   background: url(../img/image.jpg) 0 0 no-repeat;
   position: absolute;
+  z-index: 2;
   cursor: pointer;
 }
 
@@ -144,6 +150,40 @@ body {
 .start-menu__amount-input > input {
   width: 35px;
 }
+
+.start-menu__bg-change {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  margin: 1em 0;
+}
+
+.start-menu__bg-change-switch {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  align-items: center;
+  margin-left: 5px;
+}
+
+.start-menu__bg-change-img {
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin-left: 5px;
+  cursor: pointer;
+}
+
+.start-menu__bg-change-img:first-child {
+  margin-left: 0;
+}
+
+
+.start-menu__bg-change-img:hover {
+  outline: 1px solid var(--theme-color-1__hover);
+}
+
 
 .start-menu__buttons-wrapper {
   display: flex;
@@ -385,4 +425,68 @@ body {
 
 .popup__button:not(:last-child) {
   margin-right: var(--base-padding);
+}
+
+
+/* Превью */
+.preview-shower {
+  position: absolute;
+  z-index: 10000;
+  right: 5px;
+  top: 5px;
+
+  width: 20px;
+  height: 20px;
+
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--theme-color-1);
+}
+
+.preview-shower--const:hover::before,
+.preview-shower--const:hover::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 1px);
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background-color: red;
+}
+.preview-shower--const:hover::before {
+  transform: rotate(45deg);
+}
+.preview-shower--const:hover::after {
+  transform: rotate(135deg);
+}
+
+.preview-shower--hidden {
+  display: none;
+}
+
+.preview-image-wrapper {
+  user-select: none;
+  display: block;
+  position: absolute;
+  /* z-index: -1; */
+  right: 5px;
+  top: 5px;
+
+  /* границы отображения */
+  width: 35%;
+  height: 35vh;
+}
+
+.preview-image {
+  display: block;
+  position: relative;
+  z-index: 9999;
+  right: 0;
+  top: 0;
+
+  /* заполнить с сохранением пропорций
+  и прижать в левый верхний угол */
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 100% 0;
 }

@@ -10,8 +10,8 @@ const SEARCH_SPREAD = 20;
 const MERGE_SPREAD = 20;
 // Максимальное количество деталей по короткой стороне
 const MAX_SHORT_SIDE_ELEMENTS_AMOUNT = 12;
-// Количество фонов в папке img/bg
-const BG_FILES = 8;
+// Количество фонов в папке /img/bg
+const BG_FILES = 4;
 
 // Элементы стартового меню
 const startMenu = document.querySelector('.start-menu__wrapper'),
@@ -152,7 +152,7 @@ function inputFileChangeHandler() {
   // получить размер изображения
   getPictureData('outer', imageURL).then(
     (result) => {
-      inputFileLabel.textContent = 'Your image is downloaded';
+      inputFileLabel.textContent = 'Your image is uploaded';
       userImageURLData = result;
 
       // отобразить превью близ кнопки загрузки

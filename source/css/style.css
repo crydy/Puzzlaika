@@ -147,6 +147,14 @@ body {
   margin: 20px 0;
 }
 
+.start-menu__instruction-li {
+  position: relative;
+}
+.start-menu__instruction-li-action {
+  position: absolute;
+  left: 120px;
+}
+
 .start-menu__amount-input > input {
   width: 35px;
 }
